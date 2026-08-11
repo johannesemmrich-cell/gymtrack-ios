@@ -9,6 +9,7 @@ struct PlanExerciseEditView: View {
     @Environment(\.modelContext) private var modelContext
 
     @State private var equipmentNote: String = ""
+    @State private var weightText: String = ""
 
     var body: some View {
         NavigationStack {
@@ -19,10 +20,13 @@ struct PlanExerciseEditView: View {
                     HStack {
                         Text("Gewicht (kg)")
                         Spacer()
-                        TextField("optional", text: weightBinding)
+                        TextField("optional", text: $weightText)
                             .keyboardType(.decimalPad)
                             .multilineTextAlignment(.trailing)
                             .accessibilityLabel("Zielgewicht")
+                            .onChange(of: weightText) { _, newValue in
+                                planExercise.targetWeight = WeightInput.parse(newValue)
+                            }
                     }
                 }
 
@@ -50,7 +54,7 @@ struct PlanExerciseEditView: View {
                     Button("Fertig") { save() }
                 }
             }
-            .onAppear(perform: loadEquipmentNote)
+            .onAppear(perform: loadInitialState)
         }
     }
 
@@ -61,14 +65,8 @@ struct PlanExerciseEditView: View {
         )
     }
 
-    private var weightBinding: Binding<String> {
-        Binding(
-            get: { planExercise.targetWeight.map { String($0) } ?? "" },
-            set: { planExercise.targetWeight = Double($0.replacingOccurrences(of: ",", with: ".")) }
-        )
-    }
-
-    private func loadEquipmentNote() {
+    private func loadInitialState() {
+        weightText = planExercise.targetWeight.map { String($0) } ?? ""
         guard let activeGym, let exercise = planExercise.exercise else { return }
         let note = ExerciseGymNoteStore.findOrCreate(exercise: exercise, gym: activeGym, in: modelContext)
         equipmentNote = note.note
