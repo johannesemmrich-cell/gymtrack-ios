@@ -12,8 +12,23 @@ struct ContentView: View {
             Text("Statistiken")
                 .tabItem { Label("Statistik", systemImage: "chart.bar.fill") }
 
-            Text("Einstellungen")
+            SettingsView()
                 .tabItem { Label("Einstellungen", systemImage: "gearshape.fill") }
+        }
+    }
+}
+
+private struct SettingsView: View {
+    var body: some View {
+        NavigationStack {
+            List {
+                NavigationLink {
+                    GymListView()
+                } label: {
+                    Label("Gyms", systemImage: "building.2")
+                }
+            }
+            .navigationTitle("Einstellungen")
         }
     }
 }

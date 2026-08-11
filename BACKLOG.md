@@ -4,7 +4,7 @@ Alleinige Quelle der Wahrheit für den Aufgabenstand. Workflow-Regeln siehe `CLA
 
 ## Offen
 
-- **Gym-Verwaltung (UI)** – Gyms anlegen/bearbeiten/löschen (Name, optionale Notiz), ein Gym als aktuell aktiv markieren.
+- **Aktives Gym nach Löschung** – wenn das aktuell aktive Gym gelöscht wird, ist danach kein Gym mehr aktiv (kein Auto-Promote). Für V1 akzeptiert, aber relevant sobald Gewichts-Vorschlag/Workout-Logging vom aktiven Gym abhängen – dann entscheiden, ob automatisch ein anderes Gym aktiv werden soll.
 - **Gewichts- & Wiederholungs-Vorschlag pro Übung+Gym** – Business-Logik: letztes Gewicht UND letzte Wiederholungszahl pro (Übung, Gym) aus der Satz-Historie ableiten, beim nächsten Training in diesem Gym automatisch vorschlagen (kein neues Datenmodell nötig, `SetEntry` hat `weight`/`reps`/`exercise`/`gym`/`session.startedAt` bereits). Unit-Tests für die Vorschlagslogik.
 - **Gym-Umrechnungsfaktor** – optionaler Umrechnungsfaktor zwischen Gyms (pro Übung oder global einstellbar), damit Statistiken/PRs gym-übergreifend auf ein Referenz-Gym umgerechnet vergleichbar sind. Unit-Tests für die Umrechnung, inkl. Edge Case "Gym ohne Historie".
 - **Übungsbibliothek** – vordefinierte Grundmenge an Standardübungen, durchsuchbar, eigene Übungen jederzeit ergänzbar.
@@ -28,6 +28,13 @@ Alleinige Quelle der Wahrheit für den Aufgabenstand. Workflow-Regeln siehe `CLA
 (noch leer)
 
 ## Erledigt
+
+- **Gym-Verwaltung (UI)** – Gyms anlegen/bearbeiten/löschen (Name, optionale Notiz), ein Gym als aktuell aktiv markieren. *(2026-08-11)*
+  - Gebaut: erste echte UI-Ticket des Projekts. `GymActivation` (ViewModels/) als pure, testbare Business-Logik ("genau ein Gym aktiv"); `GymListView` (Liste mit Tap-zum-Aktivieren, Swipe-Löschen, Swipe-Bearbeiten, Empty State) + `GymFormView` (Anlegen/Bearbeiten-Sheet, Name Pflicht, Notiz optional, getrimmt, leere Notiz wird zu `nil`); Einstellungen-Tab in `ContentView` verlinkt jetzt zu Gyms statt Platzhaltertext. `--uitesting`-Launch-Flag sorgt dafür, dass UI-Tests den In-Memory-Container statt des echten CloudKit-Stores benutzen (keine Verschmutzung echter Daten, keine Flakiness durch alte Testdaten).
+  - Getestet: 6 neue Unit-Tests für `GymActivation` (Deaktivieren anderer, bereits-aktiv bleibt aktiv, einzelnes Gym, leere Liste, Ziel nicht in Liste, mehrere fälschlich aktive Gyms werden auf eins korrigiert) + 1 neuer XCUITest (Gym anlegen erscheint in der Liste). Gesamt 31 Unit-Tests + 2 UI-Tests grün.
+  - Bug gefunden & behoben: Der neue UI-Test schlug erst fehl, weil `GymRow` per `.accessibilityElement(children: .combine)` (für VoiceOver) den Namen-Text in das Label des umschließenden Buttons verschmilzt – `app.staticTexts["Test-Gym"]` fand daher nichts. Auf `app.buttons[...]` umgestellt.
+  - Unabhängiger Review-Pass: APPROVE. Reviewer fand zusätzlich, dass der kombinierte Button-Label bei Gyms **mit Notiz** zu `"Name, Notiz"` wird – künftige Tests, die nur nach dem Namen suchen, würden das nicht mehr finden. Behoben durch zusätzliche stabile `.accessibilityIdentifier(gym.name)` auf dem Button, unabhängig vom VoiceOver-Label. Danach erneut Build+Tests grün.
+  - Bekannte, akzeptierte Lücke: Löschen des aktiven Gyms lässt kein Gym aktiv (kein Auto-Promote) – als eigener Backlog-Punkt unter "Offen" festgehalten.
 
 - **Datenmodell-Erweiterung: Temporäre Erinnerungs-Notiz** – neue Entity für eine Notiz pro (Übung, Gym), die einmalig beim nächsten Training dieser Übung in genau diesem Gym angezeigt und danach automatisch nicht mehr angezeigt wird (Anzeige-/Konsum-Logik selbst ist Teil der späteren Workout-Logging-UI, hier nur das Datenmodell). *(2026-08-11)*
   - Gebaut: neue Entity `ExerciseGymReminder` (Exercise+Gym → `text`, `isConsumed`-Flag), cascade-delete auf beiden Seiten wie bei `ExerciseGymNote`. Das eigentliche "beim nächsten Training anzeigen und danach ausblenden" ist bewusst nicht Teil dieses Tickets – das ist Business-/UI-Logik einer späteren Workout-Logging-Aufgabe, hier nur die Datengrundlage (Text + Konsum-Status + Ziel).
