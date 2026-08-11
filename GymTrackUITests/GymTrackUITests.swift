@@ -66,4 +66,33 @@ final class GymTrackUITests: XCTestCase {
         }
         XCTAssertTrue(newExerciseRow.exists)
     }
+
+    func testCreatingPlanAndAddingExerciseShowsItInEditor() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--uitesting"]
+        app.launch()
+
+        app.tabBars.buttons["Pläne"].tap()
+
+        let addPlanButton = app.navigationBars.buttons["Plan hinzufügen"]
+        XCTAssertTrue(addPlanButton.waitForExistence(timeout: 5))
+        addPlanButton.tap()
+
+        // Tapping "+" creates the plan and navigates straight into its editor.
+        let nameField = app.textFields["Planname"]
+        XCTAssertTrue(nameField.waitForExistence(timeout: 5))
+
+        let addExerciseButton = app.buttons["Übung hinzufügen"]
+        XCTAssertTrue(addExerciseButton.waitForExistence(timeout: 5))
+        addExerciseButton.tap()
+
+        // "Bankdrücken" is alphabetically first within "Brust", the first muscle-group
+        // section, so it's guaranteed visible in the picker without scrolling/searching.
+        let pickerOption = app.buttons["Bankdrücken"]
+        XCTAssertTrue(pickerOption.waitForExistence(timeout: 5))
+        pickerOption.tap()
+
+        // Back in the editor, the newly added exercise should now be the only row.
+        XCTAssertTrue(app.buttons["Bankdrücken"].waitForExistence(timeout: 5))
+    }
 }

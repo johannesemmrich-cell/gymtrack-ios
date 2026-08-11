@@ -37,4 +37,30 @@ final class ExerciseSearchTests: XCTestCase {
         let result = ExerciseSearch.filter(exercises: [], query: "bank")
         XCTAssertTrue(result.isEmpty)
     }
+
+    func testGroupedOrdersByMuscleGroupDeclarationOrderAndSortsNamesWithinGroup() {
+        let exercises = [
+            Exercise(name: "Kniebeugen", muscleGroup: .legs),
+            Exercise(name: "Bankdrücken", muscleGroup: .chest),
+            Exercise(name: "Ausfallschritte", muscleGroup: .legs)
+        ]
+        let grouped = ExerciseSearch.grouped(exercises: exercises, query: "")
+        XCTAssertEqual(grouped.map(\.group), [.chest, .legs])
+        XCTAssertEqual(grouped.first(where: { $0.group == .legs })?.items.map(\.name), ["Ausfallschritte", "Kniebeugen"])
+    }
+
+    func testGroupedExcludesEmptyGroups() {
+        let exercises = [Exercise(name: "Bankdrücken", muscleGroup: .chest)]
+        let grouped = ExerciseSearch.grouped(exercises: exercises, query: "")
+        XCTAssertEqual(grouped.count, 1)
+    }
+
+    func testGroupedAppliesQueryFilterBeforeGrouping() {
+        let exercises = [
+            Exercise(name: "Bankdrücken", muscleGroup: .chest),
+            Exercise(name: "Kniebeugen", muscleGroup: .legs)
+        ]
+        let grouped = ExerciseSearch.grouped(exercises: exercises, query: "bank")
+        XCTAssertEqual(grouped.map(\.group), [.chest])
+    }
 }

@@ -6,7 +6,7 @@ struct ContentView: View {
             Text("Workouts")
                 .tabItem { Label("Training", systemImage: "dumbbell.fill") }
 
-            Text("Pläne")
+            PlanListView()
                 .tabItem { Label("Pläne", systemImage: "list.bullet.rectangle") }
 
             Text("Statistiken")

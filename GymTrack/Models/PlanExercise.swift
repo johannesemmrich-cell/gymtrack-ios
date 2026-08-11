@@ -10,6 +10,10 @@ final class PlanExercise {
     var targetWeight: Double? = nil
     /// Free-text note scoped to this exercise within this plan (e.g. "Flachbank statt Schrägbank").
     var note: String? = nil
+    /// Bumped whenever sets/reps/weight/note are tuned; used to find the most recently
+    /// tuned entry for an exercise across plans, independent of unrelated edits to the
+    /// parent plan (renaming it, touching a different exercise in it, etc.).
+    var updatedAt: Date = Date.now
 
     var plan: TrainingPlan? = nil
     var exercise: Exercise? = nil
@@ -21,6 +25,7 @@ final class PlanExercise {
         targetReps: Int = 10,
         targetWeight: Double? = nil,
         note: String? = nil,
+        updatedAt: Date = .now,
         plan: TrainingPlan? = nil,
         exercise: Exercise? = nil
     ) {
@@ -30,6 +35,7 @@ final class PlanExercise {
         self.targetReps = targetReps
         self.targetWeight = targetWeight
         self.note = note
+        self.updatedAt = updatedAt
         self.plan = plan
         self.exercise = exercise
     }

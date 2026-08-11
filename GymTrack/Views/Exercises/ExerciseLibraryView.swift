@@ -13,11 +13,7 @@ struct ExerciseLibraryView: View {
     }
 
     private var groupedExercises: [(group: MuscleGroup, items: [Exercise])] {
-        let groups = Dictionary(grouping: filteredExercises, by: \.muscleGroup)
-        return MuscleGroup.allCases.compactMap { group in
-            guard let items = groups[group], !items.isEmpty else { return nil }
-            return (group, items.sorted { $0.name < $1.name })
-        }
+        ExerciseSearch.grouped(exercises: exercises, query: searchText)
     }
 
     var body: some View {
