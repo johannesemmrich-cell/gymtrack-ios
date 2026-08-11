@@ -27,6 +27,11 @@ private struct SettingsView: View {
                 } label: {
                     Label("Gyms", systemImage: "building.2")
                 }
+                NavigationLink {
+                    ExerciseLibraryView()
+                } label: {
+                    Label("Übungen", systemImage: "figure.strengthtraining.traditional")
+                }
             }
             .navigationTitle("Einstellungen")
         }
