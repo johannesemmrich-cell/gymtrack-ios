@@ -21,8 +21,19 @@ struct PlanListView: View {
                         NavigationLink(value: plan) {
                             PlanRow(plan: plan)
                         }
+                        .swipeActions(edge: .trailing) {
+                            Button("Löschen", role: .destructive) {
+                                modelContext.delete(plan)
+                                try? modelContext.save()
+                            }
+                        }
+                        .swipeActions(edge: .leading) {
+                            Button("Duplizieren") {
+                                duplicate(plan)
+                            }
+                            .tint(.blue)
+                        }
                     }
-                    .onDelete(perform: delete)
                 }
             }
             .navigationTitle("Pläne")
@@ -48,9 +59,11 @@ struct PlanListView: View {
         navigationPath.append(plan)
     }
 
-    private func delete(at offsets: IndexSet) {
-        for index in offsets {
-            modelContext.delete(plans[index])
+    private func duplicate(_ plan: TrainingPlan) {
+        let result = TrainingPlanDuplication.duplicate(plan)
+        modelContext.insert(result.plan)
+        for planExercise in result.planExercises {
+            modelContext.insert(planExercise)
         }
         try? modelContext.save()
     }

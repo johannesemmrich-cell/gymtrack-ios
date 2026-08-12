@@ -124,6 +124,38 @@ final class GymTrackUITests: XCTestCase {
         XCTAssertTrue(app.textFields["Planname"].waitForExistence(timeout: 5))
     }
 
+    func testDuplicatingPlanCreatesACopyAlongsideTheOriginal() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--uitesting"]
+        app.launch()
+
+        app.tabBars.buttons["Pläne"].tap()
+        app.navigationBars.buttons["Plan hinzufügen"].tap()
+        XCTAssertTrue(app.textFields["Planname"].waitForExistence(timeout: 5))
+        app.buttons["Übung hinzufügen"].tap()
+        let pickerOption = app.buttons["Bankdrücken"]
+        XCTAssertTrue(pickerOption.waitForExistence(timeout: 5))
+        pickerOption.tap()
+        XCTAssertTrue(app.buttons["Bankdrücken"].waitForExistence(timeout: 5))
+
+        app.buttons["BackButton"].tap()
+
+        let originalRow = app.staticTexts["Neuer Plan"]
+        XCTAssertTrue(originalRow.waitForExistence(timeout: 5))
+        // "Duplizieren" is a leading-edge swipe action — reveal it with swipeRight.
+        originalRow.swipeRight()
+        let duplicateButton = app.buttons["Duplizieren"]
+        XCTAssertTrue(duplicateButton.waitForExistence(timeout: 5))
+        duplicateButton.tap()
+
+        XCTAssertTrue(app.staticTexts["Neuer Plan (Kopie)"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Neuer Plan"].waitForExistence(timeout: 5))
+
+        // The copy must carry over the exercise, not start empty.
+        app.staticTexts["Neuer Plan (Kopie)"].tap()
+        XCTAssertTrue(app.buttons["Bankdrücken"].waitForExistence(timeout: 5))
+    }
+
     func testStartingWorkoutFromPlanShowsLoggableSets() {
         let app = XCUIApplication()
         app.launchArguments = ["--uitesting"]
