@@ -11,7 +11,6 @@ Alleinige Quelle der Wahrheit für den Aufgabenstand. Workflow-Regeln siehe `CLA
 - **Import/Export von Plänen (JSON)** – Export über iOS Share Sheet, Import z. B. aus der Files-App, inkl. Validierung/Fehlermeldung bei beschädigter Datei. Unit-Tests fürs Parsing inkl. Edge Case "beschädigte Datei".
 - **Supersets** – mehrere Übungen als Gruppe direkt hintereinander loggen, visuell klar gruppiert.
 - **Dropsets** – mehrere Sätze derselben Übung direkt hintereinander mit abnehmendem Gewicht ohne Pause, als zusammengehörige Einheit erkennbar.
-- **Statistik: meistgemachte Übungen** – Häufigkeit pro Übung. Nur `isCompleted == true`-Sätze zählen.
 - **Statistik: Trainingsvolumen über Zeit** – pro Übung und gesamt. Nur `isCompleted == true`-Sätze zählen.
 - **Statistik: Personal Records / geschätztes 1RM** – gym-übergreifend vergleichbar via Umrechnungsfaktor. Nur `isCompleted == true`-Sätze zählen. Unit-Tests für die 1RM-Formel inkl. Edge Cases (0 Wiederholungen, keine Historie).
 - **Durchgängiges Design-Polishing** – SF Symbols, Light/Dark Mode, Dynamic Type & VoiceOver-Grundlagen über alle bis dahin gebauten Screens.
@@ -22,6 +21,11 @@ Alleinige Quelle der Wahrheit für den Aufgabenstand. Workflow-Regeln siehe `CLA
 (noch leer)
 
 ## Erledigt
+
+- **Statistik: meistgemachte Übungen** – Häufigkeit pro Übung. Nur `isCompleted == true`-Sätze zählen. *(2026-08-12)*
+  - Gebaut: `ExerciseFrequency` zählt pro Übung, in wie vielen zählbaren Sessions (siehe `SessionStatistics.eligibleSessions`) sie mit mindestens einem erledigten Satz vorkam – mehrere Sätze derselben Übung an einem Tag zählen als 1, nicht als 5, um sich bewusst nicht mit dem künftigen "Trainingsvolumen"-Ticket zu überschneiden. Neue Sektion "Häufigste Übungen" im Statistik-Tab zeigt die Top 5, absteigend sortiert, bei Gleichstand alphabetisch.
+  - Getestet: 7 Unit-Tests für `ExerciseFrequency` (Mehrfachsätze zählen einmal, Summierung über Sessions, unerledigte Sätze zählen nicht für ihre Übung auch wenn die Session durch eine andere Übung zählbar ist, nicht-zählbare Sessions komplett ausgeschlossen, Sortierung, alphabetischer Tiebreak) + bestehender XCUITest um zwei Assertions erweitert. Gesamt 127 Unit-Tests + 12 UI-Tests grün.
+  - Unabhängiger Review-Pass: APPROVE, keine blockierenden Findings. Reviewer hat zwei rein kosmetische Randfälle notiert (nicht behoben, nicht blockierend): gleichnamige Übungen könnten bei Gleichstand pro App-Start unterschiedlich sortiert werden (hängt an der bereits akzeptierten fehlenden Namens-Eindeutigkeit); würde man alle Übungen mit Historie löschen, zeigt "Häufigste Übungen" leer während Dauer/Frequenz weiter Daten zeigen – kein Absturz, nur eine Inkonsistenz in einem sehr unwahrscheinlichen Szenario.
 
 - **Statistik: Trainingsdauer & Frequenz** – durchschnittliche Trainingsdauer, Trainingsfrequenz pro Woche (Durchschnitt). Nur `isCompleted == true`-Sätze zählen. *(2026-08-12)*
   - Gebaut: erste echte Inhalte im bis dahin leeren Statistik-Tab. `SessionStatistics` (reine Business-Logik): eine Session zählt nur, wenn sie beendet ist (`endedAt != nil`) UND mindestens einen erledigten Satz hat – die Regel "nur erledigte Sätze zählen" auf Session-Ebene übersetzt, da Dauer/Frequenz Session- und keine Satz-Kennzahlen sind. Ø Trainings/Woche teilt durch mindestens eine volle Woche (nie durch null), damit ein einzelnes oder mehrere Trainings am selben Tag keine verzerrte Rate ergeben. `StatisticsTabView` zeigt "Ø Trainingsdauer" und "Ø Trainings / Woche" bzw. einen Empty State, solange kein Training abgeschlossen wurde.

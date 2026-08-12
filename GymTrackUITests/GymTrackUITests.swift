@@ -364,6 +364,9 @@ final class GymTrackUITests: XCTestCase {
         app.tabBars.buttons["Statistik"].tap()
         XCTAssertTrue(app.staticTexts["Ø Trainingsdauer"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["Ø Trainings / Woche"].waitForExistence(timeout: 5))
+        // The one exercise trained shows up in "Häufigste Übungen" with a session count of 1.
+        XCTAssertTrue(app.staticTexts["Bankdrücken"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["1×"].waitForExistence(timeout: 5))
     }
 
     /// Builds a one-exercise plan and starts a workout from it, landing on WorkoutSessionView.

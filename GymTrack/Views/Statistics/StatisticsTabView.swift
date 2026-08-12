@@ -12,6 +12,10 @@ struct StatisticsTabView: View {
         SessionStatistics.averageSessionsPerWeek(sessions)
     }
 
+    private var mostFrequentExercises: [ExerciseFrequency.Entry] {
+        Array(ExerciseFrequency.mostFrequentExercises(from: sessions).prefix(5))
+    }
+
     var body: some View {
         NavigationStack {
             List {
@@ -25,6 +29,14 @@ struct StatisticsTabView: View {
                     Section("Übersicht") {
                         StatRow(title: "Ø Trainingsdauer", value: formattedDuration)
                         StatRow(title: "Ø Trainings / Woche", value: formattedFrequency)
+                    }
+                    Section("Häufigste Übungen") {
+                        ForEach(mostFrequentExercises, id: \.exercise.id) { entry in
+                            StatRow(
+                                title: entry.exercise.name,
+                                value: "\(entry.sessionCount)×"
+                            )
+                        }
                     }
                 }
             }
