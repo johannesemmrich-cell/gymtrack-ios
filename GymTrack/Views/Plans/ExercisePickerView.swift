@@ -6,6 +6,7 @@ struct ExercisePickerView: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var searchText = ""
+    @State private var isPresentingCreateSheet = false
 
     let onSelect: (Exercise) -> Void
 
@@ -16,6 +17,13 @@ struct ExercisePickerView: View {
     var body: some View {
         NavigationStack {
             List {
+                Section {
+                    Button {
+                        isPresentingCreateSheet = true
+                    } label: {
+                        Label("Neue Übung erstellen", systemImage: "plus")
+                    }
+                }
                 ForEach(groupedExercises, id: \.group) { entry in
                     Section(entry.group.displayName) {
                         ForEach(entry.items) { exercise in
@@ -30,6 +38,12 @@ struct ExercisePickerView: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Abbrechen") { dismiss() }
+                }
+            }
+            .sheet(isPresented: $isPresentingCreateSheet) {
+                ExerciseFormView { exercise in
+                    onSelect(exercise)
+                    dismiss()
                 }
             }
         }

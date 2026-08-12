@@ -96,6 +96,34 @@ final class GymTrackUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Bankdrücken"].waitForExistence(timeout: 5))
     }
 
+    /// Creating a brand-new exercise from inside the plan's exercise picker (rather than
+    /// having to back out to Einstellungen → Übungen first) must add it to the plan directly.
+    func testCreatingExerciseFromWithinPlanEditorAddsItDirectly() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--uitesting"]
+        app.launch()
+
+        app.tabBars.buttons["Pläne"].tap()
+        app.navigationBars.buttons["Plan hinzufügen"].tap()
+        XCTAssertTrue(app.textFields["Planname"].waitForExistence(timeout: 5))
+        app.buttons["Übung hinzufügen"].tap()
+
+        let createButton = app.buttons["Neue Übung erstellen"]
+        XCTAssertTrue(createButton.waitForExistence(timeout: 5))
+        createButton.tap()
+
+        let nameField = app.textFields["Übungsname"]
+        XCTAssertTrue(nameField.waitForExistence(timeout: 5))
+        nameField.tap()
+        nameField.typeText("Ganz Neue Übung")
+        app.buttons["Sichern"].tap()
+
+        // Both the create sheet and the picker sheet should be gone, landing back on the
+        // plan editor with the freshly created exercise already added.
+        XCTAssertTrue(app.buttons["Ganz Neue Übung"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.textFields["Planname"].waitForExistence(timeout: 5))
+    }
+
     func testStartingWorkoutFromPlanShowsLoggableSets() {
         let app = XCUIApplication()
         app.launchArguments = ["--uitesting"]

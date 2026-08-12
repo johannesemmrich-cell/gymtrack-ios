@@ -4,8 +4,16 @@ struct ExerciseFormView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
 
+    /// Called with the newly created exercise right before this view dismisses itself —
+    /// lets a caller (e.g. the plan editor's exercise picker) immediately select it.
+    var onCreate: ((Exercise) -> Void)?
+
     @State private var name: String = ""
     @State private var muscleGroup: MuscleGroup = .other
+
+    init(onCreate: ((Exercise) -> Void)? = nil) {
+        self.onCreate = onCreate
+    }
 
     private var isNameValid: Bool {
         !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -46,6 +54,7 @@ struct ExerciseFormView: View {
         let exercise = Exercise(name: trimmedName, muscleGroup: muscleGroup, isCustom: true)
         modelContext.insert(exercise)
         try? modelContext.save()
+        onCreate?(exercise)
         dismiss()
     }
 }
