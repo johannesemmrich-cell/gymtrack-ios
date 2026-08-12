@@ -8,6 +8,9 @@ final class Gym {
     var note: String? = nil
     var isActive: Bool = false
     var createdAt: Date = Date.now
+    /// Multiplier to make this gym's logged weights comparable to other gyms (e.g. a machine
+    /// calibrated differently). 1.0 means "no conversion". See `GymConversion`.
+    var weightConversionFactor: Double = 1.0
 
     // Inverse sides of one-directional relationships declared on SetEntry/WorkoutSession/PersonalRecord.
     // SwiftData+CloudKit requires every relationship to have an explicit inverse.
@@ -33,12 +36,14 @@ final class Gym {
         name: String = "",
         note: String? = nil,
         isActive: Bool = false,
-        createdAt: Date = .now
+        createdAt: Date = .now,
+        weightConversionFactor: Double = 1.0
     ) {
         self.id = id
         self.name = name
         self.note = note
         self.isActive = isActive
         self.createdAt = createdAt
+        self.weightConversionFactor = weightConversionFactor
     }
 }

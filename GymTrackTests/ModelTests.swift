@@ -193,6 +193,22 @@ final class ModelTests: XCTestCase {
         XCTAssertEqual(note.note, "Sitz Stufe 4")
         XCTAssertEqual(note.exercise?.name, "Beinpresse")
         XCTAssertEqual(note.gym?.name, "Frankfurt")
+        XCTAssertNil(note.conversionFactor, "No per-exercise override by default — inherits the gym's global factor")
+    }
+
+    func testExerciseGymNoteConversionFactorIsSettable() {
+        let note = ExerciseGymNote(conversionFactor: 0.8)
+        XCTAssertEqual(note.conversionFactor, 0.8)
+    }
+
+    func testGymDefaultsToNoConversion() {
+        let gym = Gym(name: "Frankfurt")
+        XCTAssertEqual(gym.weightConversionFactor, 1.0)
+    }
+
+    func testGymConversionFactorIsSettable() {
+        let gym = Gym(name: "Frankfurt", weightConversionFactor: 0.8)
+        XCTAssertEqual(gym.weightConversionFactor, 0.8)
     }
 
     func testExerciseGymNoteCascadeDeletesWhenExerciseDeleted() throws {

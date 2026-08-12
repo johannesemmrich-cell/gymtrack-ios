@@ -8,11 +8,17 @@ struct GymFormView: View {
 
     @State private var name: String
     @State private var note: String
+    @State private var conversionFactorText: String
 
     init(gymToEdit: Gym? = nil) {
         self.gymToEdit = gymToEdit
         _name = State(initialValue: gymToEdit?.name ?? "")
         _note = State(initialValue: gymToEdit?.note ?? "")
+        _conversionFactorText = State(initialValue: Self.formatted(gymToEdit?.weightConversionFactor ?? 1.0))
+    }
+
+    private static func formatted(_ factor: Double) -> String {
+        factor == 1.0 ? "1" : String(factor)
     }
 
     private var isNameValid: Bool {
@@ -29,6 +35,18 @@ struct GymFormView: View {
                 Section("Notiz (optional)") {
                     TextField("z. B. Zugangscode 1234", text: $note, axis: .vertical)
                         .accessibilityLabel("Gym-Notiz")
+                }
+                Section {
+                    HStack {
+                        Text("Umrechnungsfaktor")
+                        Spacer()
+                        TextField("1", text: $conversionFactorText)
+                            .keyboardType(.decimalPad)
+                            .multilineTextAlignment(.trailing)
+                            .accessibilityLabel("Umrechnungsfaktor")
+                    }
+                } footer: {
+                    Text("Nur nötig, wenn Geräte hier anders kalibriert sind als in deinen anderen Gyms – 1 bedeutet keine Umrechnung.")
                 }
             }
             .navigationTitle(gymToEdit == nil ? "Neues Gym" : "Gym bearbeiten")
@@ -48,12 +66,19 @@ struct GymFormView: View {
     private func save() {
         let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedNote = note.trimmingCharacters(in: .whitespacesAndNewlines)
+        let parsedFactor = WeightInput.parse(conversionFactorText) ?? 1.0
+        let conversionFactor = parsedFactor > 0 ? parsedFactor : 1.0
 
         if let gym = gymToEdit {
             gym.name = trimmedName
             gym.note = trimmedNote.isEmpty ? nil : trimmedNote
+            gym.weightConversionFactor = conversionFactor
         } else {
-            let gym = Gym(name: trimmedName, note: trimmedNote.isEmpty ? nil : trimmedNote)
+            let gym = Gym(
+                name: trimmedName,
+                note: trimmedNote.isEmpty ? nil : trimmedNote,
+                weightConversionFactor: conversionFactor
+            )
             modelContext.insert(gym)
         }
         try? modelContext.save()

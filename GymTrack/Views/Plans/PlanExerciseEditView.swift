@@ -10,6 +10,7 @@ struct PlanExerciseEditView: View {
 
     @State private var equipmentNote: String = ""
     @State private var weightText: String = ""
+    @State private var conversionFactorText: String = ""
 
     var body: some View {
         NavigationStack {
@@ -39,6 +40,14 @@ struct PlanExerciseEditView: View {
                     Section("Ausrüstung in \(activeGym.name)") {
                         TextField("z. B. Sitz Stufe 4", text: $equipmentNote, axis: .vertical)
                             .accessibilityLabel("Ausrüstungs-Notiz")
+                        HStack {
+                            Text("Umrechnungsfaktor")
+                            Spacer()
+                            TextField("Gym-Standard", text: $conversionFactorText)
+                                .keyboardType(.decimalPad)
+                                .multilineTextAlignment(.trailing)
+                                .accessibilityLabel("Umrechnungsfaktor für diese Übung")
+                        }
                     }
                 } else {
                     Section("Ausrüstung") {
@@ -70,6 +79,7 @@ struct PlanExerciseEditView: View {
         guard let activeGym, let exercise = planExercise.exercise else { return }
         let note = ExerciseGymNoteStore.findOrCreate(exercise: exercise, gym: activeGym, in: modelContext)
         equipmentNote = note.note
+        conversionFactorText = note.conversionFactor.map { String($0) } ?? ""
     }
 
     private func save() {
@@ -77,6 +87,9 @@ struct PlanExerciseEditView: View {
         if let activeGym, let exercise = planExercise.exercise {
             let note = ExerciseGymNoteStore.findOrCreate(exercise: exercise, gym: activeGym, in: modelContext)
             note.note = equipmentNote
+            // A factor <= 0 is never meaningful — treat it the same as leaving the field empty
+            // (clear the override, inherit the gym's global factor) rather than persisting it.
+            note.conversionFactor = WeightInput.parse(conversionFactorText).flatMap { $0 > 0 ? $0 : nil }
             note.updatedAt = .now
         }
         try? modelContext.save()

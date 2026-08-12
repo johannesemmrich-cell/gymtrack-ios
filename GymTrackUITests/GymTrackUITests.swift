@@ -60,6 +60,41 @@ final class GymTrackUITests: XCTestCase {
         XCTAssertTrue(berlinButton.isSelected)
     }
 
+    func testGymConversionFactorPersistsAfterEditing() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--uitesting"]
+        app.launch()
+
+        app.tabBars.buttons["Einstellungen"].tap()
+        app.staticTexts["Gyms"].tap()
+
+        app.navigationBars.buttons["Gym hinzufügen"].tap()
+        let nameField = app.textFields["Gym-Name"]
+        XCTAssertTrue(nameField.waitForExistence(timeout: 5))
+        nameField.tap()
+        nameField.typeText("Kalibriertes Gym")
+
+        let factorField = app.textFields["Umrechnungsfaktor"]
+        XCTAssertTrue(factorField.exists)
+        // Pre-filled with the default "1" — double-tap selects it (a single tap can leave the
+        // cursor before the existing text rather than after it, so plain backspaces aren't
+        // reliable here), so typing directly replaces it instead of appending to it.
+        factorField.doubleTap()
+        factorField.typeText("0.8")
+
+        app.buttons["Sichern"].tap()
+        let gymButton = app.buttons["Kalibriertes Gym"]
+        XCTAssertTrue(gymButton.waitForExistence(timeout: 5))
+
+        // "Bearbeiten" is a leading-edge swipe action — reveal it with swipeRight.
+        gymButton.swipeRight()
+        app.buttons["Bearbeiten"].tap()
+
+        let reopenedFactorField = app.textFields["Umrechnungsfaktor"]
+        XCTAssertTrue(reopenedFactorField.waitForExistence(timeout: 5))
+        XCTAssertEqual(reopenedFactorField.value as? String, "0.8")
+    }
+
     private func createGym(_ app: XCUIApplication, name: String) {
         app.navigationBars.buttons["Gym hinzufügen"].tap()
         let nameField = app.textFields["Gym-Name"]
