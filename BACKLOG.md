@@ -11,7 +11,6 @@ Alleinige Quelle der Wahrheit für den Aufgabenstand. Workflow-Regeln siehe `CLA
 - **Import/Export von Plänen (JSON)** – Export über iOS Share Sheet, Import z. B. aus der Files-App, inkl. Validierung/Fehlermeldung bei beschädigter Datei. Unit-Tests fürs Parsing inkl. Edge Case "beschädigte Datei".
 - **Supersets** – mehrere Übungen als Gruppe direkt hintereinander loggen, visuell klar gruppiert.
 - **Dropsets** – mehrere Sätze derselben Übung direkt hintereinander mit abnehmendem Gewicht ohne Pause, als zusammengehörige Einheit erkennbar.
-- **Statistik: Trainingsdauer & Frequenz** – durchschnittliche Trainingsdauer, Trainingsfrequenz pro Woche (Durchschnitt). Nur `isCompleted == true`-Sätze zählen.
 - **Statistik: meistgemachte Übungen** – Häufigkeit pro Übung. Nur `isCompleted == true`-Sätze zählen.
 - **Statistik: Trainingsvolumen über Zeit** – pro Übung und gesamt. Nur `isCompleted == true`-Sätze zählen.
 - **Statistik: Personal Records / geschätztes 1RM** – gym-übergreifend vergleichbar via Umrechnungsfaktor. Nur `isCompleted == true`-Sätze zählen. Unit-Tests für die 1RM-Formel inkl. Edge Cases (0 Wiederholungen, keine Historie).
@@ -24,6 +23,10 @@ Alleinige Quelle der Wahrheit für den Aufgabenstand. Workflow-Regeln siehe `CLA
 
 ## Erledigt
 
+- **Statistik: Trainingsdauer & Frequenz** – durchschnittliche Trainingsdauer, Trainingsfrequenz pro Woche (Durchschnitt). Nur `isCompleted == true`-Sätze zählen. *(2026-08-12)*
+  - Gebaut: erste echte Inhalte im bis dahin leeren Statistik-Tab. `SessionStatistics` (reine Business-Logik): eine Session zählt nur, wenn sie beendet ist (`endedAt != nil`) UND mindestens einen erledigten Satz hat – die Regel "nur erledigte Sätze zählen" auf Session-Ebene übersetzt, da Dauer/Frequenz Session- und keine Satz-Kennzahlen sind. Ø Trainings/Woche teilt durch mindestens eine volle Woche (nie durch null), damit ein einzelnes oder mehrere Trainings am selben Tag keine verzerrte Rate ergeben. `StatisticsTabView` zeigt "Ø Trainingsdauer" und "Ø Trainings / Woche" bzw. einen Empty State, solange kein Training abgeschlossen wurde.
+  - Getestet: 12 Unit-Tests für `SessionStatistics` (Eligibility-Filter, Dauer-Mittelwert, Wochen-Frequenz inkl. Grenzfällen) + 1 neuer XCUITest (Training abschließen → Statistik-Tab zeigt beide Kennzahlen statt Empty State). Gesamt 120 Unit-Tests + 12 UI-Tests grün.
+  - Unabhängiger Review-Pass: APPROVE, keine blockierenden Findings. Reviewer hat die Wochen-Grenzfall-Arithmetik (exakt 2 Wochen Spanne → 1.5/Woche) manuell auf Gleitkomma-Robustheit nachgerechnet und bestätigt, sowie verifiziert, dass ein nachträglich gelöschter einziger erledigter Satz einer bereits beendeten Session nicht erreichbar ist (es gibt noch keine Möglichkeit, in eine beendete Session zurückzukehren).
 - **Plan duplizieren** – bestehenden Plan als Kopie übernehmen und nur Details ändern. U. a. hilfreich, um denselben Plan mit anderen Ziel-Gewichten für ein anderes Gym als Basis zu duplizieren (Gewichts-Vorschlag pro aktivem Gym übernimmt das aber für wiederkehrende Nutzung meist schon automatisch). *(2026-08-12)*
   - Gebaut: `TrainingPlanDuplication` (reine Kopier-Logik: neuer Plan mit "(Kopie)"-Suffix, alle Plan-Übungen mit gleichen Ziel-Werten/Notiz kopiert, gleiche `Exercise`-Referenzen statt Duplikate). Neue "Duplizieren"-Swipe-Aktion (führende Kante) in der Plan-Liste neben dem bestehenden "Löschen".
   - Getestet: 8 Unit-Tests für `TrainingPlanDuplication` + 1 neuer XCUITest (Plan mit Übung duplizieren → Original und Kopie beide sichtbar, Kopie enthält dieselbe Übung). Gesamt 109 Unit-Tests + 11 UI-Tests grün.

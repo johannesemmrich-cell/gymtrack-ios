@@ -9,7 +9,7 @@ struct ContentView: View {
             PlanListView()
                 .tabItem { Label("Pläne", systemImage: "list.bullet.rectangle") }
 
-            Text("Statistiken")
+            StatisticsTabView()
                 .tabItem { Label("Statistik", systemImage: "chart.bar.fill") }
 
             SettingsView()

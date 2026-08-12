@@ -338,6 +338,34 @@ final class GymTrackUITests: XCTestCase {
         app.buttons["Fertig"].tap()
     }
 
+    func testCompletingAWorkoutShowsStatistics() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--uitesting"]
+        app.launch()
+        startWorkoutFromFreshPlan(app)
+
+        // End the workout regardless of whether the default 3 target sets are all marked
+        // done — if the incomplete-sets alert appears, remove-and-end still leaves at least
+        // one completed set behind (the eligibility bar for a session to count).
+        let workingRow = app.buttons["Satz 0"]
+        XCTAssertTrue(workingRow.waitForExistence(timeout: 5))
+        workingRow.tap()
+        let toggle = app.switches["Satz erledigt"]
+        XCTAssertTrue(toggle.waitForExistence(timeout: 5))
+        toggle.switches.firstMatch.tap()
+        app.buttons["Fertig"].tap()
+
+        app.navigationBars.buttons["Beenden"].tap()
+        if app.alerts.firstMatch.waitForExistence(timeout: 3) {
+            app.buttons["Entfernen & Beenden"].tap()
+        }
+        XCTAssertTrue(app.buttons["Neuer Plan"].waitForExistence(timeout: 5))
+
+        app.tabBars.buttons["Statistik"].tap()
+        XCTAssertTrue(app.staticTexts["Ø Trainingsdauer"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Ø Trainings / Woche"].waitForExistence(timeout: 5))
+    }
+
     /// Builds a one-exercise plan and starts a workout from it, landing on WorkoutSessionView.
     private func startWorkoutFromFreshPlan(_ app: XCUIApplication) {
         app.tabBars.buttons["Pläne"].tap()
