@@ -4,7 +4,6 @@ Alleinige Quelle der Wahrheit für den Aufgabenstand. Workflow-Regeln siehe `CLA
 
 ## Offen
 
-- **Aktives Gym nach Löschung** – wenn das aktuell aktive Gym gelöscht wird, ist danach kein Gym mehr aktiv (kein Auto-Promote). Für V1 akzeptiert, aber relevant sobald Gewichts-Vorschlag/Workout-Logging vom aktiven Gym abhängen – dann entscheiden, ob automatisch ein anderes Gym aktiv werden soll.
 - **Gym-Umrechnungsfaktor** – optionaler Umrechnungsfaktor zwischen Gyms (pro Übung oder global einstellbar), damit Statistiken/PRs gym-übergreifend auf ein Referenz-Gym umgerechnet vergleichbar sind. Unit-Tests für die Umrechnung, inkl. Edge Case "Gym ohne Historie".
 - **Vorlagen-basierte Pläne** – mitgelieferte Split-Vorlagen (z. B. Push/Pull/Legs, Ganzkörper) als Startpunkt, danach frei anpassbar.
 - **Letztes Training wiederholen** – ein vorheriges (abgeschlossenes) Training als Vorlage für eine neue Session übernehmen, auch wenn es nicht aus einem Plan gestartet wurde.
@@ -18,6 +17,11 @@ Alleinige Quelle der Wahrheit für den Aufgabenstand. Workflow-Regeln siehe `CLA
 ## In Arbeit
 
 ## Erledigt
+
+- **Aktives Gym nach Löschung** – wenn das aktuell aktive Gym gelöscht wird, wird automatisch ein anderes Gym aktiv. *(2026-08-12)*
+  - Gebaut: `GymActivation.promoteReplacement(afterDeleting:remaining:)` – no-op, wenn das gelöschte Gym gar nicht aktiv war oder keine Gyms übrig bleiben; sonst wird das alphabetisch erste verbleibende Gym aktiviert (deterministisch, passt zur ohnehin alphabetisch sortierten Gym-Liste). `GymListView`s Löschen-Swipe-Aktion ruft das vor `modelContext.delete`/`save` auf.
+  - Getestet: 5 neue Unit-Tests für `GymActivation` (alphabetischer Tiebreak, genau ein verbleibendes Gym, keine verbleibenden Gyms crasht nicht, inaktives Gym löschen lässt andere unangetastet, fälschlich mehrfach aktive Gyms werden auf eins korrigiert) + 1 neuer XCUITest (aktives Gym löschen → verbleibendes Gym wird automatisch aktiv, geprüft über `XCUIElement.isSelected`). Gesamt 141 Unit-Tests + 13 UI-Tests grün.
+  - Unabhängiger Review-Pass: APPROVE, keine blockierenden Findings. Reviewer hat den neuen UI-Test per Mutationsprobe (Fix temporär entfernt → Test schlägt exakt an der erwarteten Stelle fehl → Fix wiederhergestellt) als nicht-vakuos verifiziert und den Zustand "keine Gyms mehr vorhanden" in allen nachgelagerten `@Query`-Konsumenten (TrainingTabView, PlanEditorView, PlanExerciseEditView, WorkoutSessionBuilder) als bereits sicher nil-behandelt bestätigt – keine Regression durch dieses Ticket. Alphabetischer statt z. B. "zuletzt benutzt"-Tiebreak als bewusste, vertretbare Wahl notiert (nicht blockierend).
 
 - **Statistik: Trainingsvolumen über Zeit** – pro Übung und gesamt. Nur `isCompleted == true`-Sätze zählen. *(2026-08-12)*
   - Gebaut: `TrainingVolume` (reine Business-Logik) summiert `weight × Wiederholungen` über alle erledigten Sätze pro zählbarer Session (`SessionStatistics.eligibleSessions`), optional gefiltert auf eine Übung. `exercisesWithVolumeHistory` liefert die Übungen mit echter Historie für den Picker, damit dieser nie eine Übung ohne Daten anbietet. Neue Sektion "Trainingsvolumen" im Statistik-Tab: Picker ("Gesamt" + Übungen mit Historie) über einem nativen Swift-Charts-Liniendiagramm (`.tint`-Farbe, eine Serie, daher bewusst keine Legende, wie in der `dataviz`-Skill-Anleitung für Ein-Serien-Charts).

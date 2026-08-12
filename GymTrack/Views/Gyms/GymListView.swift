@@ -28,6 +28,8 @@ struct GymListView: View {
                     .accessibilityIdentifier(gym.name)
                     .swipeActions(edge: .trailing) {
                         Button("Löschen", role: .destructive) {
+                            let remaining = gyms.filter { $0.id != gym.id }
+                            GymActivation.promoteReplacement(afterDeleting: gym, remaining: remaining)
                             modelContext.delete(gym)
                             try? modelContext.save()
                         }

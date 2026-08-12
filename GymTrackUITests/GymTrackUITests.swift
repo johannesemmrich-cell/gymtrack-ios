@@ -34,6 +34,42 @@ final class GymTrackUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Test-Gym"].waitForExistence(timeout: 5))
     }
 
+    func testDeletingTheActiveGymPromotesAnotherGymToActive() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--uitesting"]
+        app.launch()
+
+        app.tabBars.buttons["Einstellungen"].tap()
+        app.staticTexts["Gyms"].tap()
+
+        createGym(app, name: "Berlin")
+        createGym(app, name: "Frankfurt")
+
+        let frankfurtButton = app.buttons["Frankfurt"]
+        XCTAssertTrue(frankfurtButton.waitForExistence(timeout: 5))
+        frankfurtButton.tap()
+        XCTAssertTrue(frankfurtButton.isSelected)
+
+        // Delete the now-active gym (Frankfurt) — Berlin, the only remaining gym, should be
+        // auto-promoted to active rather than leaving the app with no active gym at all.
+        frankfurtButton.swipeLeft()
+        app.buttons["Löschen"].tap()
+
+        let berlinButton = app.buttons["Berlin"]
+        XCTAssertTrue(berlinButton.waitForExistence(timeout: 5))
+        XCTAssertTrue(berlinButton.isSelected)
+    }
+
+    private func createGym(_ app: XCUIApplication, name: String) {
+        app.navigationBars.buttons["Gym hinzufügen"].tap()
+        let nameField = app.textFields["Gym-Name"]
+        XCTAssertTrue(nameField.waitForExistence(timeout: 5))
+        nameField.tap()
+        nameField.typeText(name)
+        app.buttons["Sichern"].tap()
+        XCTAssertTrue(app.buttons[name].waitForExistence(timeout: 5))
+    }
+
     func testAddingCustomExerciseShowsItInLibrary() {
         let app = XCUIApplication()
         app.launchArguments = ["--uitesting"]
