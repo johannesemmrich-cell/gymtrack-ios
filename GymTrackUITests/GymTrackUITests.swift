@@ -231,6 +231,53 @@ final class GymTrackUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Neuer Plan"].waitForExistence(timeout: 5))
     }
 
+    /// The ticket's explicit regression, end-to-end: adding a warmup set suggests the
+    /// correct percentage and inserts it before the working set (shifting the working set's
+    /// identifier), and deleting the warmup afterward must never change the working set's
+    /// own weight — the exact RepCount-style bug this project avoids.
+    func testAddingAndRemovingWarmupSetNeverChangesWorkingSetWeight() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--uitesting"]
+        app.launch()
+        startWorkoutFromFreshPlan(app)
+
+        // Give the working set a known weight so the warmup suggestion is checkable.
+        let workingRow = app.buttons["Satz 0"]
+        XCTAssertTrue(workingRow.waitForExistence(timeout: 5))
+        workingRow.tap()
+        let weightField = app.textFields["Satz-Gewicht"]
+        XCTAssertTrue(weightField.waitForExistence(timeout: 5))
+        weightField.tap()
+        typeAndCheckEachKeystroke(weightField, "100")
+        app.buttons["Fertig"].tap()
+
+        // Adding a warmup inserts it BEFORE the working set, so the working set's
+        // identifier shifts from "Satz 0" to "Satz 1".
+        app.buttons["Aufwärmsatz"].tap()
+        let warmupRow = app.buttons["Satz 0"]
+        XCTAssertTrue(warmupRow.waitForExistence(timeout: 5))
+        warmupRow.tap()
+        let warmupWeightField = app.textFields["Satz-Gewicht"]
+        XCTAssertTrue(warmupWeightField.waitForExistence(timeout: 5))
+        XCTAssertEqual(warmupWeightField.value as? String, "50.0", "A single warmup should default to 50% of the 100 kg working weight")
+        app.buttons["Fertig"].tap()
+
+        let shiftedWorkingRow = app.buttons["Satz 1"]
+        XCTAssertTrue(shiftedWorkingRow.waitForExistence(timeout: 5))
+
+        // Delete the warmup via swipe-to-delete.
+        warmupRow.swipeLeft()
+        app.buttons["Delete"].tap()
+
+        // The working set's own weight must be completely untouched by the warmup's removal.
+        XCTAssertTrue(shiftedWorkingRow.waitForExistence(timeout: 5))
+        shiftedWorkingRow.tap()
+        let reopenedWeightField = app.textFields["Satz-Gewicht"]
+        XCTAssertTrue(reopenedWeightField.waitForExistence(timeout: 5))
+        XCTAssertEqual(reopenedWeightField.value as? String, "100.0")
+        app.buttons["Fertig"].tap()
+    }
+
     /// Builds a one-exercise plan and starts a workout from it, landing on WorkoutSessionView.
     private func startWorkoutFromFreshPlan(_ app: XCUIApplication) {
         app.tabBars.buttons["Pläne"].tap()

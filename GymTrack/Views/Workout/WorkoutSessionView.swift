@@ -49,10 +49,18 @@ struct WorkoutSessionView: View {
                         delete(sets: entry.items, at: offsets)
                     }
 
-                    Button {
-                        addSet(for: entry.exercise, basedOn: entry.items.last)
-                    } label: {
-                        Label("Satz hinzufügen", systemImage: "plus")
+                    HStack {
+                        Button {
+                            addWarmupSet(for: entry.exercise, in: entry.items)
+                        } label: {
+                            Label("Aufwärmsatz", systemImage: "flame")
+                        }
+                        Spacer()
+                        Button {
+                            addSet(for: entry.exercise, basedOn: entry.items.last)
+                        } label: {
+                            Label("Satz hinzufügen", systemImage: "plus")
+                        }
                     }
                 }
             }
@@ -110,6 +118,39 @@ struct WorkoutSessionView: View {
         try? modelContext.save()
     }
 
+    private func addWarmupSet(for exercise: Exercise, in exerciseSets: [SetEntry]) {
+        let firstWorkingSet = exerciseSets.first { $0.setType == .normal }
+        let workingWeight = firstWorkingSet?.weight ?? 0
+        let existingWarmupCount = exerciseSets.filter { $0.setType == .warmup }.count
+        let suggestion = WarmupSuggestion.suggestedWeights(workingWeight: workingWeight, count: existingWarmupCount + 1)
+        let newWeight = suggestion.last ?? 0
+
+        let newWarmup = SetEntry(
+            setType: .warmup,
+            reps: firstWorkingSet?.reps ?? 10,
+            weight: newWeight,
+            exercise: exercise,
+            gym: session.gym,
+            session: session
+        )
+        modelContext.insert(newWarmup)
+
+        // Warmups must precede their exercise's working sets — reposition and reindex the
+        // whole session (not just this exercise's local slice) to keep `.order` globally
+        // unique/monotonic. Reindexing only ever touches `.order`; see
+        // WarmupSetInsertionTests/SetEntryOrderingTests for the explicit regression coverage.
+        // `newWarmup`'s `session:` init param already linked it into session.sets via
+        // SwiftData's inverse relationship, so exclude it here before re-inserting it in the
+        // correct position — otherwise it would appear twice.
+        let allSets = (session.sets ?? [])
+            .filter { $0 !== newWarmup }
+            .sorted { $0.order < $1.order }
+        let reordered = WarmupSetInsertion.insert(newWarmup, into: allSets, forExerciseID: exercise.id)
+        SetEntryOrdering.reindex(reordered)
+
+        try? modelContext.save()
+    }
+
     private func delete(sets: [SetEntry], at offsets: IndexSet) {
         for index in offsets {
             modelContext.delete(sets[index])
@@ -130,6 +171,10 @@ private struct SetRow: View {
         HStack {
             Image(systemName: set.isCompleted ? "checkmark.circle.fill" : "circle")
                 .foregroundStyle(set.isCompleted ? .green : .secondary)
+            if set.setType == .warmup {
+                Image(systemName: "flame")
+                    .foregroundStyle(.orange)
+            }
             Text("\(set.weight.formatted()) kg × \(set.reps)")
             Spacer()
         }
