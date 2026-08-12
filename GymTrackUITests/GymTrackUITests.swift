@@ -367,6 +367,13 @@ final class GymTrackUITests: XCTestCase {
         // The one exercise trained shows up in "Häufigste Übungen" with a session count of 1.
         XCTAssertTrue(app.staticTexts["Bankdrücken"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["1×"].waitForExistence(timeout: 5))
+
+        // Volume-over-time chart section: header, exercise picker, and the chart itself
+        // (queried by its accessibility label, since Swift Charts marks aren't individually
+        // exposed as static text elements).
+        XCTAssertTrue(app.staticTexts["Trainingsvolumen"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Übung, Gesamt"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.otherElements["Trainingsvolumen über Zeit"].waitForExistence(timeout: 5))
     }
 
     /// Builds a one-exercise plan and starts a workout from it, landing on WorkoutSessionView.
