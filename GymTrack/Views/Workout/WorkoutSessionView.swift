@@ -5,6 +5,11 @@ struct WorkoutSessionView: View {
     @Environment(\.modelContext) private var modelContext
 
     @State private var setToEdit: SetEntry?
+    @State private var isPresentingIncompleteAlert = false
+
+    private var incompleteSetCount: Int {
+        WorkoutCompletion.incompleteSets(in: session).count
+    }
 
     private var groupedSets: [(exercise: Exercise, items: [SetEntry])] {
         let sets = (session.sets ?? []).sorted { $0.order < $1.order }
@@ -38,6 +43,7 @@ struct WorkoutSessionView: View {
                             SetRow(set: set)
                         }
                         .buttonStyle(.plain)
+                        .accessibilityIdentifier("Satz \(set.order)")
                     }
                     .onDelete { offsets in
                         delete(sets: entry.items, at: offsets)
@@ -55,12 +61,38 @@ struct WorkoutSessionView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
-                Button("Beenden") { endWorkout() }
+                Button("Beenden") { endWorkoutTapped() }
             }
         }
         .sheet(item: $setToEdit) { set in
             SetEditView(set: set)
         }
+        .alert(
+            "\(incompleteSetCount) \(incompleteSetCount == 1 ? "Satz" : "Sätze") nicht ausgefüllt",
+            isPresented: $isPresentingIncompleteAlert
+        ) {
+            Button("Entfernen & Beenden", role: .destructive) {
+                removeIncompleteSetsAndEnd()
+            }
+            Button("Abbrechen", role: .cancel) {}
+        } message: {
+            Text("Nicht ausgefüllte Sätze werden entfernt und fließen nicht in die Statistik ein.")
+        }
+    }
+
+    private func endWorkoutTapped() {
+        if incompleteSetCount > 0 {
+            isPresentingIncompleteAlert = true
+        } else {
+            endWorkout()
+        }
+    }
+
+    private func removeIncompleteSetsAndEnd() {
+        for set in WorkoutCompletion.incompleteSets(in: session) {
+            modelContext.delete(set)
+        }
+        endWorkout()
     }
 
     private func addSet(for exercise: Exercise, basedOn lastSet: SetEntry?) {

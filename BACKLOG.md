@@ -12,12 +12,12 @@ Alleinige Quelle der Wahrheit für den Aufgabenstand. Workflow-Regeln siehe `CLA
 - **Aufwärmsatz-Logik** – Gewicht wird automatisch als gestaffelter Prozentsatz des ersten Arbeitssatzes vorgeschlagen (z. B. 50/70/85 %), frei überschreibbar. Hinzufügen/Entfernen eines Aufwärmsatzes darf **nie** das Gewicht anderer Sätze verändern (RepCount-Bugfix). Unit-Tests explizit für diesen Fall.
 - **Supersets** – mehrere Übungen als Gruppe direkt hintereinander loggen, visuell klar gruppiert.
 - **Dropsets** – mehrere Sätze derselben Übung direkt hintereinander mit abnehmendem Gewicht ohne Pause, als zusammengehörige Einheit erkennbar.
-- **Workout beenden** – ein unaufdringlicher Hinweis bei nicht ausgefüllten Übungen/Sätzen ("X Übungen nicht ausgefüllt – entfernen?"), mit einem Tap erledigt. Nicht bestätigte/leere Einträge fließen nie in Statistiken/PRs ein.
-- **Statistik: Trainingsdauer & Frequenz** – durchschnittliche Trainingsdauer, Trainingsfrequenz pro Woche (Durchschnitt).
-- **Statistik: meistgemachte Übungen** – Häufigkeit pro Übung.
-- **Statistik: Trainingsvolumen über Zeit** – pro Übung und gesamt.
-- **Statistik: Personal Records / geschätztes 1RM** – gym-übergreifend vergleichbar via Umrechnungsfaktor. Unit-Tests für die 1RM-Formel inkl. Edge Cases (0 Wiederholungen, keine Historie).
+- **Statistik: Trainingsdauer & Frequenz** – durchschnittliche Trainingsdauer, Trainingsfrequenz pro Woche (Durchschnitt). Nur `isCompleted == true`-Sätze zählen.
+- **Statistik: meistgemachte Übungen** – Häufigkeit pro Übung. Nur `isCompleted == true`-Sätze zählen.
+- **Statistik: Trainingsvolumen über Zeit** – pro Übung und gesamt. Nur `isCompleted == true`-Sätze zählen.
+- **Statistik: Personal Records / geschätztes 1RM** – gym-übergreifend vergleichbar via Umrechnungsfaktor. Nur `isCompleted == true`-Sätze zählen. Unit-Tests für die 1RM-Formel inkl. Edge Cases (0 Wiederholungen, keine Historie).
 - **Durchgängiges Design-Polishing** – SF Symbols, Light/Dark Mode, Dynamic Type & VoiceOver-Grundlagen über alle bis dahin gebauten Screens.
+- **Schnelles Erledigt-Markieren direkt in der Satzliste** – aktuell nur über das Bearbeiten-Sheet erreichbar. Reduziert das Risiko, dass "Entfernen & Beenden" beim Workout-Beenden versehentlich einen Satz löscht, den man ausgefüllt aber vergessen hat abzuhaken.
 
 ## In Arbeit
 
@@ -25,6 +25,11 @@ Alleinige Quelle der Wahrheit für den Aufgabenstand. Workflow-Regeln siehe `CLA
 
 ## Erledigt
 
+- **Workout beenden** – ein unaufdringlicher Hinweis bei nicht ausgefüllten Übungen/Sätzen ("X Übungen nicht ausgefüllt – entfernen?"), mit einem Tap erledigt. Nicht bestätigte/leere Einträge fließen nie in Statistiken/PRs ein. *(2026-08-12)*
+  - Gebaut: `WorkoutCompletion.incompleteSets(in:)` findet alle nicht als "Erledigt" markierten Sätze einer Session. "Beenden" zeigt nur dann einen Alert ("X Satz/Sätze nicht ausgefüllt"), wenn welche existieren – ein Tap auf "Entfernen & Beenden" löscht sie und beendet, "Abbrechen" lässt die Session unverändert weiterlaufen. Granularität bewusst auf Satz- statt Übungsebene (das Datenmodell hat kein Übungs-Completion-Flag, eine Übung kann teilweise erledigt sein).
+  - Getestet: 4 Unit-Tests für `WorkoutCompletion`, 2 neue XCUITests für den dritten und letzten von `CLAUDE.md` explizit genannten Kern-Flow ("Workout beenden") – mit Hinweis (nicht ausgefüllte Sätze vorhanden) und ohne (alle erledigt). Gesamt 86 Unit-Tests + 8 UI-Tests grün.
+  - Beim Bau der Tests eine echte XCUITest-Eigenheit gefunden: SwiftUI's `Toggle` legt für Accessibility ein zeilengroßes äußeres "Switch"-Element (das eigentlich gematchte Label) UM das eigentliche, unbeschriftete innere Switch-Widget – Tippen auf das äußere Element schaltet den echten Schalter nicht um. Live im Simulator reproduziert und mit `toggle.switches.firstMatch.tap()` (auf das innere Element scopen) gelöst; für künftige Toggle-Interaktionen in Tests relevant.
+  - Unabhängiger Review-Pass: APPROVE, keine blockierenden Findings. Reviewer hat den Toggle-Fund durch bewusstes Zurücksetzen und Reproduzieren des Fehlers verifiziert. Ein Sicherheitsaspekt festgehalten (siehe neuer Backlog-Punkt "Schnelles Erledigt-Markieren").
 - **Workout starten & normale Sätze loggen** – Workout aus einem Plan starten, Sätze mit Gewicht/Wiederholungen loggen. Temporäre Notiz pro geloggtem Satz (`SetEntry.note`) editierbar machen; permanente Ausrüstungs-Notiz (Sitz/Griff) automatisch vorschlagen wie das Gewicht. *(2026-08-12)*
   - Gebaut: der Training-Tab hat jetzt echten Inhalt. `WorkoutSessionBuilder` (reine Business-Logik: baut aus einem Plan eine Session + vorbefüllte Sätze, nutzt `SetSuggestion` fürs aktive Gym, sonst Plan-Zielwerte, sonst 3×10/0). `TrainingTabView` (Plan zum Starten wählen, oder laufende Session direkt fortsetzen), `WorkoutSessionView` (Sätze nach Übung gruppiert, Tap zum Bearbeiten, Swipe-Löschen, Satz hinzufügen, "Beenden"), `SetEditView` (Wiederholungen/Gewicht/Notiz/Erledigt-Status, permanente Ausrüstungs-Notiz fürs Gym wie in `PlanExerciseEditView`). "Workout beenden" ist hier bewusst nur `endedAt = .now` – die intelligente Hinweis-Logik für unausgefüllte Sätze ist ihr eigenes, noch offenes Ticket.
   - Getestet: 10 Tests für `WorkoutSessionBuilder`, 7 für die neu extrahierte `WeightInput`-Parsing-Logik, plus der zentrale User-Flow "Workout starten & Satz loggen" als XCUITest (von `CLAUDE.md` explizit als Kern-Flow gefordert) inkl. Regressionstest fürs Gewichts-Feld. Gesamt 82 Unit-Tests + 6 UI-Tests grün.

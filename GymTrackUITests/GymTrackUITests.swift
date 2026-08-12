@@ -183,6 +183,72 @@ final class GymTrackUITests: XCTestCase {
         app.buttons["Fertig"].tap()
     }
 
+    /// Ending a workout that still has un-toggled sets must prompt once, in one tap remove
+    /// them, and never leave the session hanging around.
+    func testEndingWorkoutWithIncompleteSetsPromptsOneTapRemoval() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--uitesting"]
+        app.launch()
+        startWorkoutFromFreshPlan(app)
+
+        // Sets are pre-filled but not marked "Erledigt" by default — ending now must prompt.
+        app.navigationBars.buttons["Beenden"].tap()
+        XCTAssertTrue(app.alerts.firstMatch.waitForExistence(timeout: 5))
+        app.buttons["Entfernen & Beenden"].tap()
+
+        // Session is over: Training tab falls back to the plan-picker list.
+        XCTAssertTrue(app.buttons["Neuer Plan"].waitForExistence(timeout: 5))
+    }
+
+    /// If every set was already marked done, ending must not interrupt with a prompt at all.
+    func testEndingWorkoutWithAllSetsCompletedSkipsPrompt() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--uitesting"]
+        app.launch()
+        startWorkoutFromFreshPlan(app)
+
+        // The exercise defaults to 3 target sets (no history yet, PlanExerciseDefaults
+        // fallback). Each SetRow carries a deterministic "Satz <order>" identifier
+        // (0, 1, 2), so mark every one of them done by address rather than by content —
+        // all 3 rows render identically ("0 kg × 10") until touched, which makes
+        // position/content-based queries unreliable once one row's state changes.
+        for order in 0..<3 {
+            let row = app.buttons["Satz \(order)"]
+            XCTAssertTrue(row.waitForExistence(timeout: 5))
+            row.tap()
+            let toggle = app.switches["Satz erledigt"]
+            XCTAssertTrue(toggle.waitForExistence(timeout: 5))
+            // SwiftUI's Toggle exposes a row-sized outer "Switch" element (matched by our
+            // accessibility label) wrapping the actual iOS switch widget as an unlabeled
+            // inner "Switch" — tapping the outer element doesn't propagate to flip the real
+            // control, so tap the inner one directly.
+            toggle.switches.firstMatch.tap()
+            app.buttons["Fertig"].tap()
+        }
+
+        app.navigationBars.buttons["Beenden"].tap()
+        XCTAssertFalse(app.alerts.firstMatch.waitForExistence(timeout: 2))
+        XCTAssertTrue(app.buttons["Neuer Plan"].waitForExistence(timeout: 5))
+    }
+
+    /// Builds a one-exercise plan and starts a workout from it, landing on WorkoutSessionView.
+    private func startWorkoutFromFreshPlan(_ app: XCUIApplication) {
+        app.tabBars.buttons["Pläne"].tap()
+        app.navigationBars.buttons["Plan hinzufügen"].tap()
+        XCTAssertTrue(app.textFields["Planname"].waitForExistence(timeout: 5))
+        app.buttons["Übung hinzufügen"].tap()
+        let pickerOption = app.buttons["Bankdrücken"]
+        XCTAssertTrue(pickerOption.waitForExistence(timeout: 5))
+        pickerOption.tap()
+        XCTAssertTrue(app.buttons["Bankdrücken"].waitForExistence(timeout: 5))
+
+        app.tabBars.buttons["Training"].tap()
+        let startPlanButton = app.buttons["Neuer Plan"]
+        XCTAssertTrue(startPlanButton.waitForExistence(timeout: 5))
+        startPlanButton.tap()
+        XCTAssertTrue(app.navigationBars.buttons["Beenden"].waitForExistence(timeout: 5))
+    }
+
     private func typeAndCheckEachKeystroke(_ field: XCUIElement, _ text: String) {
         var expected = ""
         for character in text {
