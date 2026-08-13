@@ -248,6 +248,28 @@ final class GymTrackUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Bankdrücken"].waitForExistence(timeout: 5))
     }
 
+    /// The system Share Sheet and Files document picker are separate OS processes that aren't
+    /// reliably driveable from XCUITest across simulator/OS versions, so this only confirms the
+    /// entry points render and are tappable without crashing — the actual JSON encode/decode/
+    /// matching logic is covered exhaustively by PlanExportImportTests instead.
+    func testExportAndImportEntryPointsAreAvailable() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--uitesting"]
+        app.launch()
+
+        app.tabBars.buttons["Pläne"].tap()
+        XCTAssertTrue(app.navigationBars.buttons["Plan importieren"].waitForExistence(timeout: 5))
+
+        app.navigationBars.buttons["Plan hinzufügen"].tap()
+        XCTAssertTrue(app.textFields["Planname"].waitForExistence(timeout: 5))
+        app.buttons["BackButton"].tap()
+
+        let planRow = app.staticTexts["Neuer Plan"]
+        XCTAssertTrue(planRow.waitForExistence(timeout: 5))
+        planRow.swipeRight()
+        XCTAssertTrue(app.buttons["Exportieren"].waitForExistence(timeout: 5))
+    }
+
     func testStartingWorkoutFromPlanShowsLoggableSets() {
         let app = XCUIApplication()
         app.launchArguments = ["--uitesting"]

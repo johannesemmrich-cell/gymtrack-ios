@@ -8,6 +8,9 @@ struct PlanListView: View {
 
     @State private var navigationPath = NavigationPath()
     @State private var isPresentingTemplatePicker = false
+    @State private var isPresentingImporter = false
+    @State private var isPresentingImportError = false
+    @State private var importErrorMessage = ""
 
     var body: some View {
         NavigationStack(path: $navigationPath) {
@@ -34,6 +37,12 @@ struct PlanListView: View {
                                 duplicate(plan)
                             }
                             .tint(.blue)
+                            if let exportURL = try? PlanExportImport.writeTempFile(for: plan) {
+                                ShareLink(item: exportURL) {
+                                    Label("Exportieren", systemImage: "square.and.arrow.up")
+                                }
+                                .tint(.green)
+                            }
                         }
                     }
                 }
@@ -54,6 +63,13 @@ struct PlanListView: View {
                         Label("Aus Vorlage erstellen", systemImage: "square.stack")
                     }
                 }
+                ToolbarItem(placement: .primaryAction) {
+                    Button {
+                        isPresentingImporter = true
+                    } label: {
+                        Label("Plan importieren", systemImage: "square.and.arrow.down")
+                    }
+                }
             }
             .navigationDestination(for: TrainingPlan.self) { plan in
                 PlanEditorView(plan: plan)
@@ -62,6 +78,14 @@ struct PlanListView: View {
                 PlanTemplatePickerView { template in
                     createPlan(from: template)
                 }
+            }
+            .fileImporter(isPresented: $isPresentingImporter, allowedContentTypes: [.json]) { result in
+                handleImport(result)
+            }
+            .alert("Import fehlgeschlagen", isPresented: $isPresentingImportError) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(importErrorMessage)
             }
         }
     }
@@ -90,6 +114,35 @@ struct PlanListView: View {
             modelContext.insert(planExercise)
         }
         try? modelContext.save()
+    }
+
+    private func handleImport(_ result: Result<URL, Error>) {
+        guard case let .success(url) = result else {
+            presentImportError()
+            return
+        }
+
+        let didStartAccess = url.startAccessingSecurityScopedResource()
+        defer { if didStartAccess { url.stopAccessingSecurityScopedResource() } }
+
+        do {
+            let data = try Data(contentsOf: url)
+            let export = try PlanExportImport.decode(data)
+            let built = PlanExportImport.makePlan(from: export, availableExercises: exercises)
+            modelContext.insert(built.plan)
+            for planExercise in built.planExercises {
+                modelContext.insert(planExercise)
+            }
+            try modelContext.save()
+            navigationPath.append(built.plan)
+        } catch {
+            presentImportError()
+        }
+    }
+
+    private func presentImportError() {
+        importErrorMessage = "Die Datei ist beschädigt oder kein gültiger Plan-Export."
+        isPresentingImportError = true
     }
 }
 
