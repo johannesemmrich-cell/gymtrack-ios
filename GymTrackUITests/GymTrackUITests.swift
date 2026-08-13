@@ -573,6 +573,38 @@ final class GymTrackUITests: XCTestCase {
         XCTAssertTrue(app.otherElements["Trainingsvolumen über Zeit"].waitForExistence(timeout: 5))
     }
 
+    func testCompletingAWorkingSetShowsAPersonalRecordEstimate() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--uitesting"]
+        app.launch()
+        startWorkoutFromFreshPlan(app)
+
+        // Give the working set a known weight so the estimated 1RM is checkable. The default
+        // plan's target reps is 10 (PlanExerciseDefaults.fallbackReps), left untouched here.
+        let workingRow = app.buttons["Satz 0"]
+        XCTAssertTrue(workingRow.waitForExistence(timeout: 5))
+        workingRow.tap()
+        let weightField = app.textFields["Satz-Gewicht"]
+        XCTAssertTrue(weightField.waitForExistence(timeout: 5))
+        weightField.tap()
+        typeAndCheckEachKeystroke(weightField, "100")
+        let toggle = app.switches["Satz erledigt"]
+        XCTAssertTrue(toggle.waitForExistence(timeout: 5))
+        toggle.switches.firstMatch.tap()
+        app.buttons["Fertig"].tap()
+
+        app.navigationBars.buttons["Beenden"].tap()
+        if app.alerts.firstMatch.waitForExistence(timeout: 3) {
+            app.buttons["Entfernen & Beenden"].tap()
+        }
+        XCTAssertTrue(app.buttons["Neuer Plan"].waitForExistence(timeout: 5))
+
+        app.tabBars.buttons["Statistik"].tap()
+        XCTAssertTrue(app.staticTexts["Bestleistungen (geschätztes 1RM)"].waitForExistence(timeout: 5))
+        // Epley formula: 100 * (1 + 10/30) ≈ 133 kg.
+        XCTAssertTrue(app.staticTexts["≈ 133 kg"].waitForExistence(timeout: 5))
+    }
+
     func testRepeatingLastWorkoutStartsAFreshSessionWithTheSameExercise() {
         let app = XCUIApplication()
         app.launchArguments = ["--uitesting"]

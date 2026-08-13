@@ -4,6 +4,7 @@ import Charts
 
 struct StatisticsTabView: View {
     @Query private var sessions: [WorkoutSession]
+    @Query private var exerciseGymNotes: [ExerciseGymNote]
     @State private var selectedExerciseID: UUID?
 
     private var averageDuration: TimeInterval? {
@@ -32,6 +33,10 @@ struct StatisticsTabView: View {
 
     private var volumeDataPoints: [TrainingVolume.DataPoint] {
         TrainingVolume.dataPoints(sessions: sessions, exercise: selectedExercise)
+    }
+
+    private var personalRecords: [PersonalRecordFinder.Entry] {
+        PersonalRecordFinder.bestPerExercise(from: sessions, exerciseGymNotes: exerciseGymNotes)
     }
 
     var body: some View {
@@ -74,6 +79,13 @@ struct StatisticsTabView: View {
                                 title: entry.exercise.name,
                                 value: "\(entry.sessionCount)×"
                             )
+                        }
+                    }
+                    if !personalRecords.isEmpty {
+                        Section("Bestleistungen (geschätztes 1RM)") {
+                            ForEach(personalRecords, id: \.exercise.id) { entry in
+                                PersonalRecordRow(entry: entry)
+                            }
                         }
                     }
                 }
@@ -126,6 +138,25 @@ private struct VolumeChart: View {
         let lastValue = Int(last.volume.rounded())
         let unit = dataPoints.count == 1 ? "Trainingseinheit" : "Trainingseinheiten"
         return "Von \(firstValue) auf \(lastValue) Kilogramm über \(dataPoints.count) \(unit)."
+    }
+}
+
+private struct PersonalRecordRow: View {
+    let entry: PersonalRecordFinder.Entry
+
+    var body: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(entry.exercise.name)
+                Text("\(entry.weight.formatted()) kg × \(entry.reps)\(entry.gym.map { " · \($0.name)" } ?? "")")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+            Text("≈ \(Int(entry.estimatedOneRepMax.rounded())) kg")
+                .foregroundStyle(.secondary)
+        }
+        .accessibilityElement(children: .combine)
     }
 }
 
