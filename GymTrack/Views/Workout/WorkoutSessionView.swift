@@ -54,6 +54,17 @@ struct WorkoutSessionView: View {
                         }
                         .buttonStyle(.plain)
                         .accessibilityIdentifier("Satz \(set.order)")
+                        .swipeActions(edge: .leading) {
+                            // A quick toggle right in the list — opening the full edit sheet
+                            // just to flip one checkbox is the exact friction this ticket exists
+                            // to remove, and it's also what reduces the risk of "Entfernen &
+                            // Beenden" silently discarding a set the user filled in but forgot
+                            // to tick off.
+                            Button(set.isCompleted ? "Nicht erledigt" : "Erledigt") {
+                                toggleCompleted(set)
+                            }
+                            .tint(set.isCompleted ? .gray : .green)
+                        }
                     }
                     .onDelete { offsets in
                         delete(sets: entry.items, at: offsets)
@@ -207,6 +218,11 @@ struct WorkoutSessionView: View {
         for index in offsets {
             modelContext.delete(sets[index])
         }
+        try? modelContext.save()
+    }
+
+    private func toggleCompleted(_ set: SetEntry) {
+        set.isCompleted.toggle()
         try? modelContext.save()
     }
 

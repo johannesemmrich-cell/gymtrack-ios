@@ -573,6 +573,66 @@ final class GymTrackUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Neuer Plan"].waitForExistence(timeout: 5))
     }
 
+    /// A leading-edge swipe action toggles "Erledigt" right in the list — the whole point is
+    /// to avoid having to open the edit sheet just to flip one checkbox, so this asserts the
+    /// edit sheet never appears at all (no "Satz-Gewicht" field shows up) while the row's own
+    /// label still reflects the new state (relies on SetRow's explicit accessibilityLabel,
+    /// which names completion state directly rather than leaving it to the SF Symbol's own
+    /// system description).
+    func testSwipingASetTogglesErledigtWithoutOpeningTheEditSheet() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--uitesting"]
+        app.launch()
+        startWorkoutFromFreshPlan(app)
+
+        let row = app.buttons["Satz 0"]
+        XCTAssertTrue(row.waitForExistence(timeout: 5))
+        XCTAssertTrue(row.label.contains("nicht erledigt"))
+
+        row.swipeRight()
+        let markDoneButton = app.buttons["Erledigt"]
+        XCTAssertTrue(markDoneButton.waitForExistence(timeout: 5))
+        markDoneButton.tap()
+
+        XCTAssertFalse(app.textFields["Satz-Gewicht"].waitForExistence(timeout: 2), "Swiping to mark a set done must not open the edit sheet")
+        XCTAssertTrue(row.waitForExistence(timeout: 5))
+        XCTAssertTrue(row.label.contains("erledigt") && !row.label.contains("nicht erledigt"))
+
+        // Toggling back must work the same way, now revealing "Nicht erledigt" instead.
+        row.swipeRight()
+        let markUndoneButton = app.buttons["Nicht erledigt"]
+        XCTAssertTrue(markUndoneButton.waitForExistence(timeout: 5))
+        markUndoneButton.tap()
+
+        XCTAssertTrue(row.waitForExistence(timeout: 5))
+        XCTAssertTrue(row.label.contains("nicht erledigt"))
+    }
+
+    /// The ticket's own stated motivation, chained end-to-end: a set marked done via the quick
+    /// swipe action (not the edit sheet's Toggle) must be just as "done" to the end-of-workout
+    /// flow as one marked via the sheet — i.e. "Entfernen & Beenden" must not treat it as
+    /// incomplete and silently discard it. Mirrors testEndingWorkoutWithAllSetsCompletedSkipsPrompt
+    /// but drives completion through the new swipe path instead of the sheet.
+    func testEndingWorkoutAfterMarkingAllSetsErledigtViaSwipeSkipsPrompt() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--uitesting"]
+        app.launch()
+        startWorkoutFromFreshPlan(app)
+
+        for order in 0..<3 {
+            let row = app.buttons["Satz \(order)"]
+            XCTAssertTrue(row.waitForExistence(timeout: 5))
+            row.swipeRight()
+            let markDoneButton = app.buttons["Erledigt"]
+            XCTAssertTrue(markDoneButton.waitForExistence(timeout: 5))
+            markDoneButton.tap()
+        }
+
+        app.navigationBars.buttons["Beenden"].tap()
+        XCTAssertFalse(app.alerts.firstMatch.waitForExistence(timeout: 2))
+        XCTAssertTrue(app.buttons["Neuer Plan"].waitForExistence(timeout: 5))
+    }
+
     /// The ticket's explicit regression, end-to-end: adding a warmup set suggests the
     /// correct percentage and inserts it before the working set (shifting the working set's
     /// identifier), and deleting the warmup afterward must never change the working set's
