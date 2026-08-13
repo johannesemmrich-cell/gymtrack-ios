@@ -4,8 +4,10 @@ import SwiftData
 struct PlanListView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \TrainingPlan.updatedAt, order: .reverse) private var plans: [TrainingPlan]
+    @Query private var exercises: [Exercise]
 
     @State private var navigationPath = NavigationPath()
+    @State private var isPresentingTemplatePicker = false
 
     var body: some View {
         NavigationStack(path: $navigationPath) {
@@ -45,9 +47,21 @@ struct PlanListView: View {
                         Label("Plan hinzufügen", systemImage: "plus")
                     }
                 }
+                ToolbarItem(placement: .primaryAction) {
+                    Button {
+                        isPresentingTemplatePicker = true
+                    } label: {
+                        Label("Aus Vorlage erstellen", systemImage: "square.stack")
+                    }
+                }
             }
             .navigationDestination(for: TrainingPlan.self) { plan in
                 PlanEditorView(plan: plan)
+            }
+            .sheet(isPresented: $isPresentingTemplatePicker) {
+                PlanTemplatePickerView { template in
+                    createPlan(from: template)
+                }
             }
         }
     }
@@ -57,6 +71,16 @@ struct PlanListView: View {
         modelContext.insert(plan)
         try? modelContext.save()
         navigationPath.append(plan)
+    }
+
+    private func createPlan(from template: PlanTemplate) {
+        let result = PlanTemplateApplication.makePlan(from: template, availableExercises: exercises)
+        modelContext.insert(result.plan)
+        for planExercise in result.planExercises {
+            modelContext.insert(planExercise)
+        }
+        try? modelContext.save()
+        navigationPath.append(result.plan)
     }
 
     private func duplicate(_ plan: TrainingPlan) {

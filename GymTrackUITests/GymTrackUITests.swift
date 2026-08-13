@@ -195,6 +195,27 @@ final class GymTrackUITests: XCTestCase {
         XCTAssertTrue(app.textFields["Planname"].waitForExistence(timeout: 5))
     }
 
+    func testCreatingPlanFromTemplatePrefillsNameAndExercises() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--uitesting"]
+        app.launch()
+
+        app.tabBars.buttons["Pläne"].tap()
+        app.navigationBars.buttons["Aus Vorlage erstellen"].tap()
+
+        let pushTemplate = app.buttons["Push"]
+        XCTAssertTrue(pushTemplate.waitForExistence(timeout: 5))
+        pushTemplate.tap()
+
+        // Selecting a template creates the plan and navigates straight into its editor,
+        // pre-named after the template and with its exercises already added.
+        let nameField = app.textFields["Planname"]
+        XCTAssertTrue(nameField.waitForExistence(timeout: 5))
+        XCTAssertEqual(nameField.value as? String, "Push")
+        XCTAssertTrue(app.buttons["Bankdrücken"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Schulterdrücken"].waitForExistence(timeout: 5))
+    }
+
     func testDuplicatingPlanCreatesACopyAlongsideTheOriginal() {
         let app = XCUIApplication()
         app.launchArguments = ["--uitesting"]
