@@ -468,6 +468,35 @@ final class GymTrackUITests: XCTestCase {
         XCTAssertTrue(app.otherElements["Trainingsvolumen über Zeit"].waitForExistence(timeout: 5))
     }
 
+    func testRepeatingLastWorkoutStartsAFreshSessionWithTheSameExercise() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--uitesting"]
+        app.launch()
+        startWorkoutFromFreshPlan(app)
+
+        let workingRow = app.buttons["Satz 0"]
+        XCTAssertTrue(workingRow.waitForExistence(timeout: 5))
+        workingRow.tap()
+        let toggle = app.switches["Satz erledigt"]
+        XCTAssertTrue(toggle.waitForExistence(timeout: 5))
+        toggle.switches.firstMatch.tap()
+        app.buttons["Fertig"].tap()
+
+        app.navigationBars.buttons["Beenden"].tap()
+        if app.alerts.firstMatch.waitForExistence(timeout: 3) {
+            app.buttons["Entfernen & Beenden"].tap()
+        }
+        XCTAssertTrue(app.buttons["Neuer Plan"].waitForExistence(timeout: 5))
+
+        let repeatButton = app.buttons["Letztes Training wiederholen"]
+        XCTAssertTrue(repeatButton.waitForExistence(timeout: 5))
+        repeatButton.tap()
+
+        // Lands directly on a fresh, uncompleted session carrying over the same exercise.
+        XCTAssertTrue(app.navigationBars.buttons["Beenden"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Satz 0"].waitForExistence(timeout: 5))
+    }
+
     /// Builds a one-exercise plan and starts a workout from it, landing on WorkoutSessionView.
     private func startWorkoutFromFreshPlan(_ app: XCUIApplication) {
         app.tabBars.buttons["Pläne"].tap()
