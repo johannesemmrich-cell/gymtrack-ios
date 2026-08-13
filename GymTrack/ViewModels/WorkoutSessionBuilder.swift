@@ -30,6 +30,7 @@ enum WorkoutSessionBuilder {
                     reps: reps,
                     weight: weight,
                     isCompleted: false,
+                    supersetGroupID: planExercise.supersetGroupID,
                     exercise: exercise,
                     gym: gym,
                     session: session

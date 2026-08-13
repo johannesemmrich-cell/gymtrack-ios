@@ -207,6 +207,75 @@ final class GymTrackUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Bankdrücken"].waitForExistence(timeout: 5))
     }
 
+    func testGroupingTwoExercisesShowsASupersetIndicatorOnBoth() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--uitesting"]
+        app.launch()
+
+        app.tabBars.buttons["Pläne"].tap()
+        app.navigationBars.buttons["Plan hinzufügen"].tap()
+        XCTAssertTrue(app.textFields["Planname"].waitForExistence(timeout: 5))
+
+        app.buttons["Übung hinzufügen"].tap()
+        let bench = app.buttons["Bankdrücken"]
+        XCTAssertTrue(bench.waitForExistence(timeout: 5))
+        bench.tap()
+
+        // ExercisePickerView's sheet ("Übung auswählen") can still be mid-dismiss-animation
+        // right after tapping an exercise — its own row shares the exercise's identifier with
+        // the row that's about to appear in the editor underneath, so waiting for that
+        // identifier to merely *exist* doesn't prove the sheet is gone. Without waiting for
+        // the sheet itself to disappear first, re-tapping "Übung hinzufügen" for the second
+        // exercise can land back inside the still-open first sheet instead of opening a fresh
+        // one — confirmed via an accessibility-tree diagnostic dump that caught the picker's
+        // full exercise list still on screen well after this point.
+        waitForDisappearance(app.navigationBars["Übung auswählen"])
+
+        app.buttons["Übung hinzufügen"].tap()
+        // "Rudern vorgebeugt" sits in the picker's "Rücken" section, off-screen without
+        // scrolling — tap() auto-scrolls to it, but that path resolved an invalid hit point in
+        // this List (same flavor of issue seen on the "Gruppieren" toolbar button elsewhere in
+        // this ticket), so the tap silently missed and the sheet never dismissed. Filtering via
+        // the picker's own search field instead keeps the target row on-screen without needing
+        // any scroll.
+        let searchField = app.searchFields["Übung suchen"]
+        XCTAssertTrue(searchField.waitForExistence(timeout: 5))
+        searchField.tap()
+        searchField.typeText("Rudern vorgebeugt")
+        let row = app.buttons["Rudern vorgebeugt"]
+        XCTAssertTrue(row.waitForExistence(timeout: 5))
+        row.tap()
+        waitForDisappearance(app.navigationBars["Übung auswählen"])
+
+        // The editor's @Query refresh (now showing 2 rows, which is what un-disables
+        // "Gruppieren" — it's disabled below 2 exercises) isn't instantaneous either. Without
+        // this wait, the next lookup below can find "Gruppieren" already *existing* but still
+        // disabled from when there was only 1 exercise, and tapping a disabled button is a
+        // silent no-op.
+        XCTAssertTrue(app.buttons["Rudern vorgebeugt"].waitForExistence(timeout: 5))
+
+        let groupButton = app.navigationBars.buttons["Gruppieren"]
+        XCTAssertTrue(groupButton.waitForExistence(timeout: 5))
+        groupButton.tap()
+
+        // In grouping mode, each row's identifier matches two accessibility elements: the
+        // real, tappable row button, and a non-hittable backing element the List/Form row
+        // infrastructure adds alongside it (confirmed via a diagnostic dump — same identifier,
+        // different combined label, isHittable=false on the decoy). tapHittableButton picks
+        // the one that's actually tappable instead of failing on the ambiguity.
+        tapHittableButton(app, identifier: "Bankdrücken")
+        tapHittableButton(app, identifier: "Rudern vorgebeugt")
+
+        app.navigationBars.buttons["Fertig"].tap()
+
+        // ExerciseRow/PlanExerciseRow combine their child text into the enclosing button's
+        // label (`.accessibilityElement(children: .combine)`), so the superset caption shows
+        // up as part of each row button's own label rather than as a separate static text.
+        XCTAssertTrue(app.buttons["Bankdrücken"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Bankdrücken"].label.contains("Superset"))
+        XCTAssertTrue(app.buttons["Rudern vorgebeugt"].label.contains("Superset"))
+    }
+
     /// Creating a brand-new exercise from inside the plan's exercise picker (rather than
     /// having to back out to Einstellungen → Übungen first) must add it to the plan directly.
     func testCreatingExerciseFromWithinPlanEditorAddsItDirectly() {
@@ -362,6 +431,65 @@ final class GymTrackUITests: XCTestCase {
         XCTAssertTrue(reopenedWeightField.waitForExistence(timeout: 5))
         XCTAssertEqual(reopenedWeightField.value as? String, "55.0")
         app.buttons["Fertig"].tap()
+    }
+
+    func testStartingAWorkoutFromAPlanWithGroupedExercisesShowsTheSupersetCaption() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--uitesting"]
+        app.launch()
+
+        app.tabBars.buttons["Pläne"].tap()
+        app.navigationBars.buttons["Plan hinzufügen"].tap()
+        XCTAssertTrue(app.textFields["Planname"].waitForExistence(timeout: 5))
+
+        app.buttons["Übung hinzufügen"].tap()
+        let bench = app.buttons["Bankdrücken"]
+        XCTAssertTrue(bench.waitForExistence(timeout: 5))
+        bench.tap()
+
+        // See the comment on the equivalent wait in
+        // testGroupingTwoExercisesShowsASupersetIndicatorOnBoth for why this is needed before
+        // re-opening the picker for the second exercise.
+        waitForDisappearance(app.navigationBars["Übung auswählen"])
+
+        app.buttons["Übung hinzufügen"].tap()
+        // See the comment on the equivalent search-field step in
+        // testGroupingTwoExercisesShowsASupersetIndicatorOnBoth for why searching instead of
+        // scrolling is needed for this specific row.
+        let searchField = app.searchFields["Übung suchen"]
+        XCTAssertTrue(searchField.waitForExistence(timeout: 5))
+        searchField.tap()
+        searchField.typeText("Rudern vorgebeugt")
+        let row = app.buttons["Rudern vorgebeugt"]
+        XCTAssertTrue(row.waitForExistence(timeout: 5))
+        row.tap()
+        waitForDisappearance(app.navigationBars["Übung auswählen"])
+
+        // See the comment on the equivalent wait in
+        // testGroupingTwoExercisesShowsASupersetIndicatorOnBoth — without it, "Gruppieren" can
+        // be found while still disabled from when the list had only 1 exercise, and tapping a
+        // disabled button silently does nothing.
+        XCTAssertTrue(app.buttons["Rudern vorgebeugt"].waitForExistence(timeout: 5))
+
+        app.navigationBars.buttons["Gruppieren"].tap()
+
+        // See the comment on the equivalent step in
+        // testGroupingTwoExercisesShowsASupersetIndicatorOnBoth for why tapHittableButton is
+        // needed here instead of a plain app.buttons[identifier] lookup.
+        tapHittableButton(app, identifier: "Bankdrücken")
+        tapHittableButton(app, identifier: "Rudern vorgebeugt")
+
+        app.navigationBars.buttons["Fertig"].tap()
+
+        app.tabBars.buttons["Training"].tap()
+        let startPlanButton = app.buttons["Neuer Plan"]
+        XCTAssertTrue(startPlanButton.waitForExistence(timeout: 5))
+        startPlanButton.tap()
+
+        XCTAssertTrue(app.navigationBars.buttons["Beenden"].waitForExistence(timeout: 5))
+        // The grouping made at plan-editing time must carry through into the active session.
+        XCTAssertTrue(app.staticTexts["🔗 Superset mit Rudern vorgebeugt"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["🔗 Superset mit Bankdrücken"].waitForExistence(timeout: 5))
     }
 
     /// PlanExerciseEditView shares the same weight-field pattern as SetEditView, but
@@ -660,5 +788,48 @@ final class GymTrackUITests: XCTestCase {
             let actual = field.value as? String ?? "<nil>"
             XCTAssertEqual(actual, expected, "After typing '\(character)', field should read '\(expected)' but read '\(actual)'")
         }
+    }
+
+    /// Some rows (e.g. PlanEditorView's exercise rows in grouping mode) resolve to two
+    /// accessibility elements sharing the same identifier — the real, tappable row button and
+    /// a non-hittable backing element the List/Form row infrastructure adds alongside it.
+    /// `app.buttons[identifier]` fails on that ambiguity; this picks the hittable one, polling
+    /// briefly in case the row hasn't finished settling yet.
+    private func tapHittableButton(_ app: XCUIApplication, identifier: String) {
+        let matches = app.buttons.matching(identifier: identifier)
+        var hittableCandidates: [XCUIElement] = []
+        var attempts = 0
+        while hittableCandidates.isEmpty && attempts < 25 {
+            hittableCandidates = (0..<matches.count).map { matches.element(boundBy: $0) }.filter { $0.isHittable }
+            if hittableCandidates.isEmpty {
+                usleep(200_000)
+                attempts += 1
+            }
+        }
+        guard let hittable = hittableCandidates.first else {
+            XCTFail("No hittable element with identifier '\(identifier)' found among \(matches.count) match(es)")
+            return
+        }
+        // More than one hittable match means there's no way to tell which one is the intended
+        // target — picking the first anyway would silently mask a real ambiguity (e.g. the
+        // same exercise added to a plan twice) instead of failing loudly.
+        guard hittableCandidates.count == 1 else {
+            XCTFail("\(hittableCandidates.count) hittable elements with identifier '\(identifier)' found — ambiguous, expected exactly 1")
+            return
+        }
+        hittable.tap()
+    }
+
+    /// Waits for `element` to leave the accessibility tree. Needed after dismissing
+    /// ExercisePickerView's sheet: its `NavigationStack` title bar ("Übung auswählen") can
+    /// briefly still exist while the sheet animates away, and picking a second exercise right
+    /// after the first (tapping "Übung hinzufügen" again) can otherwise re-tap into the still-
+    /// closing sheet instead of the editor underneath — the two "Übung hinzufügen" identifiers
+    /// aren't ambiguous, but the *timing* is: without this wait, the whole "add exercise" flow
+    /// silently repeats inside the not-yet-dismissed sheet instead of adding a second exercise.
+    private func waitForDisappearance(_ element: XCUIElement, timeout: TimeInterval = 5) {
+        let predicate = NSPredicate(format: "exists == false")
+        let expectation = XCTNSPredicateExpectation(predicate: predicate, object: element)
+        XCTAssertEqual(XCTWaiter().wait(for: [expectation], timeout: timeout), .completed)
     }
 }

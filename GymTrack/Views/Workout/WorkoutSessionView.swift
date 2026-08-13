@@ -32,10 +32,20 @@ struct WorkoutSessionView: View {
         }
     }
 
+    /// Names of the other exercises sharing this exercise's superset group, if any — every set
+    /// for one exercise carries the same `supersetGroupID` (set once at session build time), so
+    /// the first set's value stands in for the whole group.
+    private func supersetPartnerNames(for entry: (exercise: Exercise, items: [SetEntry])) -> [String] {
+        guard let groupID = entry.items.first?.supersetGroupID else { return [] }
+        return groupedSets
+            .filter { $0.exercise.id != entry.exercise.id && $0.items.first?.supersetGroupID == groupID }
+            .map(\.exercise.name)
+    }
+
     var body: some View {
         List {
             ForEach(groupedSets, id: \.exercise.id) { entry in
-                Section(entry.exercise.name) {
+                Section {
                     ForEach(entry.items) { set in
                         Button {
                             setToEdit = set
@@ -69,6 +79,17 @@ struct WorkoutSessionView: View {
                             Label("Satz hinzufügen", systemImage: "plus")
                         }
                         .buttonStyle(.borderless)
+                    }
+                } header: {
+                    let partnerNames = supersetPartnerNames(for: entry)
+                    if partnerNames.isEmpty {
+                        Text(entry.exercise.name)
+                    } else {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(entry.exercise.name)
+                            Text("🔗 Superset mit \(partnerNames.joined(separator: ", "))")
+                                .textCase(nil)
+                        }
                     }
                 }
             }
@@ -118,6 +139,7 @@ struct WorkoutSessionView: View {
             setType: .normal,
             reps: lastSet?.reps ?? 10,
             weight: lastSet?.weight ?? 0,
+            supersetGroupID: lastSet?.supersetGroupID,
             exercise: exercise,
             gym: session.gym,
             session: session
@@ -140,6 +162,7 @@ struct WorkoutSessionView: View {
             setType: .dropset,
             reps: lastSet?.reps ?? 10,
             weight: DropsetSuggestion.suggestedWeight(previousWeight: lastSet?.weight ?? 0),
+            supersetGroupID: lastSet?.supersetGroupID,
             exercise: exercise,
             gym: session.gym,
             session: session
@@ -160,6 +183,11 @@ struct WorkoutSessionView: View {
             setType: .warmup,
             reps: reps,
             weight: newWeight,
+            // Every set for one exercise shares the same supersetGroupID (set once at session
+            // build time) — any existing sibling set's value is a safe source to copy from,
+            // preferring a working set but falling back to whatever's there (e.g. an earlier
+            // warmup) if this is the very first set logged for the exercise.
+            supersetGroupID: firstWorkingSet?.supersetGroupID ?? exerciseSets.first?.supersetGroupID,
             exercise: exercise,
             gym: session.gym,
             session: session

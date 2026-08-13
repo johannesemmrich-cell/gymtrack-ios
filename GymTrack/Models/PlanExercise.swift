@@ -14,6 +14,10 @@ final class PlanExercise {
     /// tuned entry for an exercise across plans, independent of unrelated edits to the
     /// parent plan (renaming it, touching a different exercise in it, etc.).
     var updatedAt: Date = Date.now
+    /// Shared by every `PlanExercise` logged as one superset — `nil` means it's standalone.
+    /// Propagated to each `SetEntry` built from it (see `WorkoutSessionBuilder`) so the same
+    /// grouping carries through into an active workout.
+    var supersetGroupID: UUID? = nil
 
     var plan: TrainingPlan? = nil
     var exercise: Exercise? = nil
@@ -26,6 +30,7 @@ final class PlanExercise {
         targetWeight: Double? = nil,
         note: String? = nil,
         updatedAt: Date = .now,
+        supersetGroupID: UUID? = nil,
         plan: TrainingPlan? = nil,
         exercise: Exercise? = nil
     ) {
@@ -36,6 +41,7 @@ final class PlanExercise {
         self.targetWeight = targetWeight
         self.note = note
         self.updatedAt = updatedAt
+        self.supersetGroupID = supersetGroupID
         self.plan = plan
         self.exercise = exercise
     }

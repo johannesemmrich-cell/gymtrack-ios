@@ -98,4 +98,29 @@ final class WorkoutSessionBuilderTests: XCTestCase {
         let result = WorkoutSessionBuilder.build(from: plan, gym: nil, setHistory: [])
         XCTAssertTrue(result.sets.allSatisfy { $0.session === result.session })
     }
+
+    func testSetsInheritTheirPlanExercisesSupersetGroupID() {
+        let bench = Exercise(name: "Bankdrücken", muscleGroup: .chest)
+        let row = Exercise(name: "Rudern vorgebeugt", muscleGroup: .back)
+        let plan = TrainingPlan(name: "Push/Pull")
+        let benchPlanExercise = PlanExercise(order: 0, targetSets: 1, plan: plan, exercise: bench)
+        let rowPlanExercise = PlanExercise(order: 1, targetSets: 1, plan: plan, exercise: row)
+        SupersetGrouping.group([benchPlanExercise, rowPlanExercise], allPlanExercises: [benchPlanExercise, rowPlanExercise])
+
+        let result = WorkoutSessionBuilder.build(from: plan, gym: nil, setHistory: [])
+
+        let groupID = benchPlanExercise.supersetGroupID
+        XCTAssertNotNil(groupID)
+        XCTAssertTrue(result.sets.allSatisfy { $0.supersetGroupID == groupID })
+    }
+
+    func testSetsFromAStandaloneExerciseHaveNoSupersetGroupID() {
+        let exercise = Exercise(name: "Bankdrücken", muscleGroup: .chest)
+        let plan = TrainingPlan(name: "Push")
+        _ = PlanExercise(order: 0, targetSets: 1, plan: plan, exercise: exercise)
+
+        let result = WorkoutSessionBuilder.build(from: plan, gym: nil, setHistory: [])
+
+        XCTAssertTrue(result.sets.allSatisfy { $0.supersetGroupID == nil })
+    }
 }
