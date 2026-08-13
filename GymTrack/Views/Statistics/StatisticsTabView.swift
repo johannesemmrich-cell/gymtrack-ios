@@ -171,5 +171,6 @@ private struct StatRow: View {
             Text(value)
                 .foregroundStyle(.secondary)
         }
+        .accessibilityElement(children: .combine)
     }
 }

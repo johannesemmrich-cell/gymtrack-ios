@@ -235,5 +235,22 @@ private struct SetRow: View {
         }
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
+        // Without this, VoiceOver falls back to concatenating each SF Symbol's own system
+        // description (e.g. "Checkmark, circle, fill") ahead of the weight/reps text instead
+        // of clearly stating completion/set-type — set-logging is the single most frequent
+        // action in the app, so this row's announcement matters more than most.
+        .accessibilityLabel(accessibilityDescription)
+    }
+
+    private var accessibilityDescription: String {
+        var parts: [String] = []
+        switch set.setType {
+        case .warmup: parts.append("Aufwärmsatz")
+        case .dropset: parts.append("Dropsatz")
+        case .normal: break
+        }
+        parts.append("\(set.weight.formatted()) kg mal \(set.reps)")
+        parts.append(set.isCompleted ? "erledigt" : "nicht erledigt")
+        return parts.joined(separator: ", ")
     }
 }
