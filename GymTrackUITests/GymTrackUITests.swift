@@ -2,6 +2,46 @@ import XCTest
 
 final class GymTrackUITests: XCTestCase {
 
+    /// Regression: multiple `Button`s sharing one `HStack` inside a List row, without an
+    /// explicit `.buttonStyle`, silently merged into one tap target — tapping ANY of
+    /// "Aufwärmsatz"/"Dropsatz"/"Satz hinzufügen" fired ALL of their actions at once, so one
+    /// tap created one extra `SetEntry` per sibling button in the row (discovered via this
+    /// ticket's testing; also affected the pre-existing "Aufwärmsatz" button, not just the
+    /// newly added "Dropsatz" one). Root-caused by removing sibling buttons one at a time
+    /// until a single button produced the correct, exactly-one-set-per-tap result. Fixed by
+    /// giving each button its own `.buttonStyle(.borderless)`, matching the `.plain` style
+    /// already used (and already working correctly) on the per-set row buttons above.
+    func testAddingASetCreatesExactlyOneNewSetNotTwo() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--uitesting"]
+        app.launch()
+        startWorkoutFromFreshPlan(app)
+
+        // The default plan already pre-fills 3 sets (Satz 0/1/2).
+        app.buttons["Satz hinzufügen"].tap()
+
+        XCTAssertTrue(app.buttons["Satz 3"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["Satz 4"].exists, "Tapping 'Satz hinzufügen' once must create exactly one new set")
+    }
+
+    /// Same regression as `testAddingASetCreatesExactlyOneNewSetNotTwo`, but for the
+    /// pre-existing "Aufwärmsatz" button specifically (it shared the same merged-tap-target
+    /// bug, discovered only because this ticket added a sibling button next to it).
+    func testAddingAWarmupSetCreatesExactlyOneNewSetNotTwo() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--uitesting"]
+        app.launch()
+        startWorkoutFromFreshPlan(app)
+
+        app.buttons["Aufwärmsatz"].tap()
+
+        // A single warmup shifts the 3 pre-filled sets to Satz 1/2/3, adding the warmup at
+        // Satz 0. If the merged-tap-target bug were still present, Satz 4 would also exist.
+        XCTAssertTrue(app.buttons["Satz 0"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Satz 3"].exists)
+        XCTAssertFalse(app.buttons["Satz 4"].exists, "Tapping 'Aufwärmsatz' once must create exactly one new set")
+    }
+
     func testAppLaunchesAndShowsTabBar() {
         let app = XCUIApplication()
         app.launchArguments = ["--uitesting"]
@@ -446,6 +486,49 @@ final class GymTrackUITests: XCTestCase {
         // The working set's own weight must be completely untouched by the warmup's removal.
         XCTAssertTrue(shiftedWorkingRow.waitForExistence(timeout: 5))
         shiftedWorkingRow.tap()
+        let reopenedWeightField = app.textFields["Satz-Gewicht"]
+        XCTAssertTrue(reopenedWeightField.waitForExistence(timeout: 5))
+        XCTAssertEqual(reopenedWeightField.value as? String, "100.0")
+        app.buttons["Fertig"].tap()
+    }
+
+    func testAddingAndRemovingDropsetNeverChangesWorkingSetWeight() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--uitesting"]
+        app.launch()
+        startWorkoutFromFreshPlan(app)
+
+        // The default plan pre-fills 3 sets (Satz 0/1/2) for the one exercise. A dropset
+        // drops from the LAST set of the exercise, so give Satz 2 — not Satz 0 — a known
+        // weight, so the suggestion is checkable regardless of the other two sets.
+        let workingRow = app.buttons["Satz 2"]
+        XCTAssertTrue(workingRow.waitForExistence(timeout: 5))
+        workingRow.tap()
+        let weightField = app.textFields["Satz-Gewicht"]
+        XCTAssertTrue(weightField.waitForExistence(timeout: 5))
+        weightField.tap()
+        typeAndCheckEachKeystroke(weightField, "100")
+        app.buttons["Fertig"].tap()
+
+        // Dropsets are logged after the set they drop from, so the three original sets keep
+        // their identifiers and the new dropset appears as "Satz 3".
+        app.buttons["Dropsatz"].tap()
+        let dropsetRow = app.buttons["Satz 3"]
+        XCTAssertTrue(dropsetRow.waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["Satz 4"].exists, "Tapping 'Dropsatz' once must create exactly one new set")
+        dropsetRow.tap()
+        let dropsetWeightField = app.textFields["Satz-Gewicht"]
+        XCTAssertTrue(dropsetWeightField.waitForExistence(timeout: 5))
+        XCTAssertEqual(dropsetWeightField.value as? String, "80.0", "A dropset should default to 80% of the 100 kg set it drops from")
+        app.buttons["Fertig"].tap()
+
+        // Delete the dropset via swipe-to-delete.
+        dropsetRow.swipeLeft()
+        app.buttons["Delete"].tap()
+
+        // The set it dropped from must be completely untouched by the dropset's removal.
+        XCTAssertTrue(workingRow.waitForExistence(timeout: 5))
+        workingRow.tap()
         let reopenedWeightField = app.textFields["Satz-Gewicht"]
         XCTAssertTrue(reopenedWeightField.waitForExistence(timeout: 5))
         XCTAssertEqual(reopenedWeightField.value as? String, "100.0")
