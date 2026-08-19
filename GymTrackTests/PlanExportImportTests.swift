@@ -22,6 +22,19 @@ final class PlanExportImportTests: XCTestCase {
         XCTAssertEqual(export.exercises[0].note, "Flachbank")
     }
 
+    func testExportIncludesGymNameWhenPlanHasAGym() {
+        let gym = Gym(name: "Fitness Park")
+        let plan = TrainingPlan(name: "Push", gym: gym)
+        let export = PlanExportImport.export(plan)
+        XCTAssertEqual(export.gymName, "Fitness Park")
+    }
+
+    func testExportOmitsGymNameWhenPlanHasNoGym() {
+        let plan = TrainingPlan(name: "Push")
+        let export = PlanExportImport.export(plan)
+        XCTAssertNil(export.gymName)
+    }
+
     func testExportOfEmptyPlanProducesEmptyExercisesArray() {
         let plan = TrainingPlan(name: "Leerer Plan")
         let export = PlanExportImport.export(plan)
@@ -91,6 +104,28 @@ final class PlanExportImportTests: XCTestCase {
         XCTAssertEqual(decoded.exercises[0].isUnilateral, false)
     }
 
+    func testEncodeDecodeRoundTripPreservesGymName() throws {
+        let export = PlanExport(name: "Push", note: nil, gymName: "Fitness Park", exercises: [])
+        let data = try PlanExportImport.encode(export)
+        let decoded = try PlanExportImport.decode(data)
+        XCTAssertEqual(decoded.gymName, "Fitness Park")
+    }
+
+    /// A file exported before gym support existed has no `gymName` key at all — it must still
+    /// decode cleanly with a nil gym instead of failing the whole import (Optional properties
+    /// decode a missing key as nil automatically, no legacy-JSON test double needed here).
+    func testDecodingJSONWithoutGymNameKeyDefaultsToNil() throws {
+        let legacyJSON = """
+        {
+            "name": "Push",
+            "note": null,
+            "exercises": []
+        }
+        """
+        let decoded = try PlanExportImport.decode(Data(legacyJSON.utf8))
+        XCTAssertNil(decoded.gymName)
+    }
+
     func testEncodeDecodeRoundTripPreservesEmptyPlan() throws {
         let export = PlanExport(name: "Leerer Plan", note: nil, exercises: [])
         let data = try PlanExportImport.encode(export)
@@ -155,6 +190,27 @@ final class PlanExportImportTests: XCTestCase {
         XCTAssertEqual(result.planExercises[0].note, "Flachbank")
     }
 
+    func testMakePlanMatchesGymByName() {
+        let gym = Gym(name: "Fitness Park")
+        let export = PlanExport(name: "Push", note: nil, gymName: "Fitness Park", exercises: [])
+        let result = PlanExportImport.makePlan(from: export, availableExercises: [], availableGyms: [gym])
+        XCTAssertTrue(result.plan.gym === gym)
+    }
+
+    /// A gym renamed/deleted since export is not an error — same convention as an unmatched
+    /// exercise, but even more forgiving: the plan itself is still fully valid without one.
+    func testMakePlanLeavesGymNilWhenNoNameMatches() {
+        let export = PlanExport(name: "Push", note: nil, gymName: "Verschwundenes Gym", exercises: [])
+        let result = PlanExportImport.makePlan(from: export, availableExercises: [], availableGyms: [Gym(name: "Fitness Park")])
+        XCTAssertNil(result.plan.gym)
+    }
+
+    func testMakePlanLeavesGymNilWhenExportHasNoGymName() {
+        let export = PlanExport(name: "Push", note: nil, exercises: [])
+        let result = PlanExportImport.makePlan(from: export, availableExercises: [], availableGyms: [Gym(name: "Fitness Park")])
+        XCTAssertNil(result.plan.gym)
+    }
+
     func testMakePlanSkipsEntriesWithNoMatchingExerciseWithoutCrashing() {
         let export = PlanExport(
             name: "Push",
@@ -201,16 +257,18 @@ final class PlanExportImportTests: XCTestCase {
     func testFullExportImportRoundTripRecreatesAnEquivalentPlan() throws {
         let bench = Exercise(name: "Bankdrücken", muscleGroup: .chest)
         let squats = Exercise(name: "Kniebeugen", muscleGroup: .legs)
-        let originalPlan = TrainingPlan(name: "Ganzkörper", note: "Mo/Mi/Fr")
+        let gym = Gym(name: "Fitness Park")
+        let originalPlan = TrainingPlan(name: "Ganzkörper", note: "Mo/Mi/Fr", gym: gym)
         _ = PlanExercise(order: 0, targetSets: 3, targetReps: 10, targetWeight: 60, plan: originalPlan, exercise: bench)
         _ = PlanExercise(order: 1, targetSets: 4, targetReps: 8, targetWeight: 80, plan: originalPlan, exercise: squats)
 
         let data = try PlanExportImport.encode(PlanExportImport.export(originalPlan))
         let decoded = try PlanExportImport.decode(data)
-        let rebuilt = PlanExportImport.makePlan(from: decoded, availableExercises: [bench, squats])
+        let rebuilt = PlanExportImport.makePlan(from: decoded, availableExercises: [bench, squats], availableGyms: [gym])
 
         XCTAssertEqual(rebuilt.plan.name, "Ganzkörper")
         XCTAssertEqual(rebuilt.plan.note, "Mo/Mi/Fr")
+        XCTAssertTrue(rebuilt.plan.gym === gym)
         XCTAssertEqual(rebuilt.planExercises.count, 2)
         XCTAssertEqual(rebuilt.planExercises.map { $0.exercise?.name }, ["Bankdrücken", "Kniebeugen"])
     }

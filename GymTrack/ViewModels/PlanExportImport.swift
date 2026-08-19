@@ -53,7 +53,20 @@ struct PlanExport: Codable {
 
     let name: String
     let note: String?
+    /// Name of the gym this plan is for, if any — matched by name on import, same convention
+    /// as `ExerciseEntry.exerciseName`. A plain optional stored property is enough for
+    /// backward compatibility here (unlike `ExerciseEntry.isUnilateral`): Swift's synthesized
+    /// Codable already decodes a missing key as nil for Optional properties, no custom decoder
+    /// needed.
+    let gymName: String?
     let exercises: [ExerciseEntry]
+
+    init(name: String, note: String?, gymName: String? = nil, exercises: [ExerciseEntry]) {
+        self.name = name
+        self.note = note
+        self.gymName = gymName
+        self.exercises = exercises
+    }
 }
 
 enum PlanImportError: Error, Equatable {
@@ -75,7 +88,7 @@ enum PlanExportImport {
                 note: planExercise.note
             )
         }
-        return PlanExport(name: plan.name, note: plan.note, exercises: entries)
+        return PlanExport(name: plan.name, note: plan.note, gymName: plan.gym?.name, exercises: entries)
     }
 
     static func encode(_ export: PlanExport) throws -> Data {
@@ -97,9 +110,16 @@ enum PlanExportImport {
     /// Matches each export entry to an existing `Exercise` by name. Entries with no match
     /// (exercise renamed/deleted since the file was exported) are skipped rather than
     /// crashing or creating a duplicate exercise — same convention as `PlanTemplateApplication`.
-    static func makePlan(from export: PlanExport, availableExercises: [Exercise]) -> (plan: TrainingPlan, planExercises: [PlanExercise]) {
+    static func makePlan(
+        from export: PlanExport,
+        availableExercises: [Exercise],
+        availableGyms: [Gym] = []
+    ) -> (plan: TrainingPlan, planExercises: [PlanExercise]) {
         let exercisesByName = Dictionary(availableExercises.map { ($0.name, $0) }, uniquingKeysWith: { first, _ in first })
-        let plan = TrainingPlan(name: export.name, note: export.note)
+        // Unlike exercises, a gym with no name match is not an error — the plan is still fully
+        // usable, just without a gym assignment (same as any plan that never had one).
+        let gym = export.gymName.flatMap { name in availableGyms.first { $0.name == name } }
+        let plan = TrainingPlan(name: export.name, note: export.note, gym: gym)
 
         var planExercises: [PlanExercise] = []
         for entry in export.exercises.sorted(by: { $0.order < $1.order }) {

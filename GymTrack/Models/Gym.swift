@@ -20,6 +20,12 @@ final class Gym {
     @Relationship(inverse: \WorkoutSession.gym)
     var sessions: [WorkoutSession]? = []
 
+    /// No delete rule specified — defaults to nullify, matching every other inverse here. A
+    /// plan tied to this gym (see `TrainingPlan.gym`) is still a perfectly usable plan after
+    /// the gym is deleted; it just goes back to "no specific gym" instead of being deleted too.
+    @Relationship(inverse: \TrainingPlan.gym)
+    var plans: [TrainingPlan]? = []
+
     @Relationship(inverse: \PersonalRecord.gym)
     var personalRecords: [PersonalRecord]? = []
 

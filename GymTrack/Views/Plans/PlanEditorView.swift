@@ -8,6 +8,7 @@ struct PlanEditorView: View {
     @Environment(\.editMode) private var editMode
     @Query private var allPlanExercises: [PlanExercise]
     @Query(filter: #Predicate<Gym> { $0.isActive }) private var activeGyms: [Gym]
+    @Query(sort: \Gym.name) private var gyms: [Gym]
 
     @State private var isPresentingExercisePicker = false
     @State private var planExerciseToEdit: PlanExercise?
@@ -25,6 +26,20 @@ struct PlanEditorView: View {
             Section("Name") {
                 TextField("Planname", text: $plan.name)
                     .accessibilityLabel("Planname")
+            }
+
+            if !gyms.isEmpty {
+                Section("Gym") {
+                    Picker("Gym", selection: $plan.gym) {
+                        Text("Kein bestimmtes Gym").tag(Gym?.none)
+                        ForEach(gyms) { gym in
+                            Text(gym.name).tag(Gym?.some(gym))
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .accessibilityIdentifier("Gym")
+                    .accessibilityLabel("Gym")
+                }
             }
 
             Section("Übungen") {
@@ -112,6 +127,12 @@ struct PlanEditorView: View {
             }
         }
         .onChange(of: plan.name) { _, _ in
+            plan.updatedAt = .now
+        }
+        // @Model's synthesized Equatable/Hashable compares by persistentModelID, so this can't
+        // spuriously refire from the updatedAt write itself — same reasoning as the onChange
+        // above, just on the gym relationship instead of the name.
+        .onChange(of: plan.gym) { _, _ in
             plan.updatedAt = .now
         }
         .sheet(isPresented: $isPresentingExercisePicker) {

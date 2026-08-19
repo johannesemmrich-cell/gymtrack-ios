@@ -90,6 +90,19 @@ final class TrainingPlanDuplicationTests: XCTestCase {
         XCTAssertEqual(source.updatedAt, staleTimestamp, "duplicating must not touch the source either")
     }
 
+    func testCopyPreservesGym() {
+        let gym = Gym(name: "Fitness Park")
+        let plan = TrainingPlan(name: "Push Day", gym: gym)
+        let result = TrainingPlanDuplication.duplicate(plan)
+        XCTAssertTrue(result.plan.gym === gym)
+    }
+
+    func testCopyOfPlanWithoutGymStaysGymless() {
+        let plan = TrainingPlan(name: "Push Day")
+        let result = TrainingPlanDuplication.duplicate(plan)
+        XCTAssertNil(result.plan.gym)
+    }
+
     func testHandlesPlanExerciseWithNilExerciseGracefully() {
         let plan = TrainingPlan(name: "Kaputter Plan")
         _ = PlanExercise(order: 0, targetSets: 3, plan: plan, exercise: nil)

@@ -320,7 +320,7 @@ private struct ExerciseSetsSection: View {
                 // accessibility element it contains, which clobbered each field's own
                 // more-specific identifier ("Satz N Gewicht" etc.) below. The weight field's
                 // identifier stands in as the row's address for swipe actions instead.
-                SetRow(set: set, kennung: SetKennung.label(for: set, in: items))
+                SetRow(set: set, kennung: SetKennung.label(for: set, in: items), onToggleCompleted: onToggleCompleted)
                     .swipeActions(edge: .leading) {
                         // A quick manual override for cases the weight-and-reps auto-completion
                         // rule doesn't fit (e.g. a genuine 0 kg bodyweight set).
@@ -369,6 +369,7 @@ private struct ExerciseSetsSection: View {
 private struct SetRow: View {
     @Bindable var set: SetEntry
     let kennung: String
+    let onToggleCompleted: (SetEntry) -> Void
 
     @Environment(\.modelContext) private var modelContext
     @State private var weightText: String = ""
@@ -382,16 +383,30 @@ private struct SetRow: View {
     var body: some View {
         HStack(spacing: 8) {
             Text(kennung)
-                .font(.subheadline.weight(.semibold))
+                .font(.body.weight(.semibold))
                 .foregroundStyle(.secondary)
                 .frame(minWidth: 18, alignment: .leading)
                 .accessibilityIdentifier("Satz \(set.order) Kennung")
                 .accessibilityLabel(kennungDescription)
 
+            // .fixedSize(horizontal:) makes the field hug its own content instead of accepting
+            // the HStack's proposed (often much larger) width — without it, .frame(minWidth:)
+            // only sets a floor, so the field still greedily expands and, combined with
+            // .trailing alignment, that leftover width shows up as a large gap to the left of
+            // the digits. fixedSize is also what lets it grow with Dynamic Type without
+            // truncating, so the floor stays a *minimum*, never a cap.
+            // minWidth is 70, not just enough for "0" — this field doubles as the row's swipe
+            // gesture anchor (see ExerciseSetsSection/swipeHittableElement in the UI tests), and
+            // XCUITest's swipeRight() drags across the *target element's own frame*: shrunk to
+            // fixedSize's true content width for a 1-2 digit value, that frame was too narrow
+            // for the drag to register as a swipe-to-reveal instead of a tap (verified by
+            // reproducing the failure with a bare minWidth: 40).
             TextField(weightPlaceholder, text: $weightText)
+                .font(.title3.weight(.semibold))
                 .keyboardType(.decimalPad)
                 .multilineTextAlignment(.trailing)
-                .frame(minWidth: 40)
+                .frame(minWidth: 70)
+                .fixedSize(horizontal: true, vertical: false)
                 .accessibilityIdentifier("Satz \(set.order) Gewicht")
                 .accessibilityLabel("\(kennungDescription), Gewicht")
                 .onChange(of: weightText) { _, newValue in
@@ -401,13 +416,15 @@ private struct SetRow: View {
                 }
 
             Text("kg ×")
-                .font(.caption2)
+                .font(.subheadline)
                 .foregroundStyle(.secondary)
 
             TextField(repsPlaceholder, text: $repsText)
+                .font(.title3.weight(.semibold))
                 .keyboardType(.numberPad)
                 .multilineTextAlignment(.trailing)
                 .frame(minWidth: 30)
+                .fixedSize(horizontal: true, vertical: false)
                 .accessibilityIdentifier("Satz \(set.order) Wdh")
                 .accessibilityLabel("\(kennungDescription), Wiederholungen")
                 .onChange(of: repsText) { _, newValue in
@@ -430,10 +447,21 @@ private struct SetRow: View {
                 .accessibilityIdentifier("Satz \(set.order) Notiz")
                 .accessibilityLabel("\(kennungDescription), Notiz")
 
-            Image(systemName: set.isCompleted ? "checkmark.circle.fill" : "circle")
-                .foregroundStyle(set.isCompleted ? Color.green : Color.secondary)
-                .animation(.spring(duration: 0.25), value: set.isCompleted)
-                .accessibilityLabel("\(kennungDescription), \(set.isCompleted ? "erledigt" : "nicht erledigt")")
+            Button {
+                onToggleCompleted(set)
+            } label: {
+                Image(systemName: set.isCompleted ? "checkmark.circle.fill" : "circle")
+                    .font(.title3)
+                    .foregroundStyle(set.isCompleted ? Color.green : Color.secondary)
+                    .animation(.spring(duration: 0.25), value: set.isCompleted)
+                    // The glyph itself is well under Apple's 44×44pt tap-target guideline;
+                    // this expands the hit area without changing the visual size. Matches the
+                    // HStack's own 8pt spacing so it doesn't reach into the note field's space.
+                    .contentShape(Rectangle().inset(by: -8))
+            }
+            .buttonStyle(.borderless)
+            .accessibilityIdentifier("Satz \(set.order) Erledigt")
+            .accessibilityLabel("\(kennungDescription), \(set.isCompleted ? "erledigt" : "nicht erledigt")")
         }
         .onAppear {
             weightText = set.weight == 0 ? "" : String(set.weight)

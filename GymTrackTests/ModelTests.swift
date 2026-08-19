@@ -116,6 +116,24 @@ final class ModelTests: XCTestCase {
         XCTAssertNil(planExercise.exercise)
     }
 
+    func testDeletingGymNullifiesButDoesNotDeleteTrainingPlan() throws {
+        let context = makeContext()
+        let gym = Gym(name: "Fitness Park")
+        let plan = TrainingPlan(name: "Push Day", gym: gym)
+        context.insert(gym)
+        context.insert(plan)
+        try context.save()
+
+        context.delete(gym)
+        try context.save()
+
+        let planID = plan.id
+        let descriptor = FetchDescriptor<TrainingPlan>(predicate: #Predicate { $0.id == planID })
+        let remaining = try context.fetch(descriptor)
+        XCTAssertEqual(remaining.count, 1, "TrainingPlan should survive its Gym being deleted")
+        XCTAssertNil(remaining.first?.gym)
+    }
+
     func testWorkoutSessionCascadeDeletesSets() throws {
         let context = makeContext()
         let session = WorkoutSession()

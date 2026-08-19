@@ -100,6 +100,136 @@ final class GymTrackUITests: XCTestCase {
         XCTAssertTrue(berlinButton.isSelected)
     }
 
+    /// The gym switcher directly on the Pläne tab must both filter the plan list AND activate
+    /// the chosen gym (same effect as tapping it in Einstellungen → Gyms) — the whole point of
+    /// moving gym-switching out of Einstellungen. Gym-less plans stay visible under any filter;
+    /// a specific-gym filter with no matching plans shows a dedicated empty state rather than
+    /// the "create your first plan ever" one, since a plan does exist, just not for this gym.
+    func testGymFilterOnPlanListSwitchesActiveGymAndFiltersPlans() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--uitesting"]
+        app.launch()
+
+        app.tabBars.buttons["Einstellungen"].tap()
+        app.staticTexts["Gyms"].tap()
+        createGym(app, name: "Berlin")
+        createGym(app, name: "Frankfurt")
+
+        app.tabBars.buttons["Pläne"].tap()
+        let gymFilter = app.buttons["Gym-Filter"]
+        XCTAssertTrue(gymFilter.waitForExistence(timeout: 5))
+        gymFilter.tap()
+        app.buttons["Berlin"].tap()
+
+        // Picking Berlin above must have activated it immediately, exactly like tapping it
+        // directly in Einstellungen → Gyms would. Checked right here, before picking Frankfurt
+        // below (which would legitimately activate Frankfurt instead) confounds the picture.
+        app.tabBars.buttons["Einstellungen"].tap()
+        app.staticTexts["Gyms"].tap()
+        XCTAssertTrue(app.buttons["Berlin"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Berlin"].isSelected)
+        app.tabBars.buttons["Pläne"].tap()
+
+        // A plan created while the Berlin filter is active must be tagged Berlin.
+        app.navigationBars.buttons["Plan hinzufügen"].tap()
+        XCTAssertTrue(app.textFields["Planname"].waitForExistence(timeout: 5))
+        app.buttons["BackButton"].tap()
+
+        XCTAssertTrue(app.staticTexts["Neuer Plan"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["0 Übungen · Berlin"].waitForExistence(timeout: 5))
+
+        gymFilter.tap()
+        app.buttons["Frankfurt"].tap()
+        XCTAssertTrue(app.staticTexts["Keine Pläne für dieses Gym"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.staticTexts["Neuer Plan"].exists)
+
+        gymFilter.tap()
+        app.buttons["Alle"].tap()
+        XCTAssertTrue(app.staticTexts["Neuer Plan"].waitForExistence(timeout: 5))
+    }
+
+    /// The very first time the Pläne tab appears, its gym filter must already default to
+    /// whichever gym is currently active elsewhere in the app — not "Alle" — without the user
+    /// ever having touched the filter picker themselves.
+    func testPlanListInitiallySelectsTheCurrentlyActiveGymAsFilter() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--uitesting"]
+        app.launch()
+
+        app.tabBars.buttons["Einstellungen"].tap()
+        app.staticTexts["Gyms"].tap()
+        createGym(app, name: "Berlin")
+        app.buttons["Berlin"].tap()
+        XCTAssertTrue(app.buttons["Berlin"].isSelected)
+
+        app.tabBars.buttons["Pläne"].tap()
+        app.navigationBars.buttons["Plan hinzufügen"].tap()
+        XCTAssertTrue(app.textFields["Planname"].waitForExistence(timeout: 5))
+        app.buttons["BackButton"].tap()
+
+        XCTAssertTrue(app.staticTexts["0 Übungen · Berlin"].waitForExistence(timeout: 5))
+    }
+
+    /// Deleting the gym currently selected as the Pläne-tab filter auto-promotes a replacement
+    /// gym app-wide (GymActivation.promoteReplacement, exercised by
+    /// testDeletingTheActiveGymPromotesAnotherGymToActive above) — the filter must follow that
+    /// promotion instead of silently falling back to "Alle" and diverging from the gym actually
+    /// used for weight suggestions/logging for the rest of the session.
+    func testDeletingTheActiveGymWhileSelectedAsPlanFilterFollowsThePromotedReplacement() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--uitesting"]
+        app.launch()
+
+        app.tabBars.buttons["Einstellungen"].tap()
+        app.staticTexts["Gyms"].tap()
+        createGym(app, name: "Berlin")
+        createGym(app, name: "Frankfurt")
+        app.buttons["Frankfurt"].tap()
+        XCTAssertTrue(app.buttons["Frankfurt"].isSelected)
+
+        app.tabBars.buttons["Pläne"].tap()
+        let gymFilter = app.buttons["Gym-Filter"]
+        XCTAssertTrue(gymFilter.waitForExistence(timeout: 5))
+        gymFilter.tap()
+        app.buttons["Frankfurt"].tap()
+
+        app.tabBars.buttons["Einstellungen"].tap()
+        app.staticTexts["Gyms"].tap()
+        app.buttons["Frankfurt"].swipeLeft()
+        app.buttons["Löschen"].tap()
+        XCTAssertTrue(app.buttons["Berlin"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Berlin"].isSelected)
+
+        app.tabBars.buttons["Pläne"].tap()
+        app.navigationBars.buttons["Plan hinzufügen"].tap()
+        XCTAssertTrue(app.textFields["Planname"].waitForExistence(timeout: 5))
+        app.buttons["BackButton"].tap()
+
+        XCTAssertTrue(app.staticTexts["0 Übungen · Berlin"].waitForExistence(timeout: 5))
+    }
+
+    /// Independent of the list filter, a plan's gym must also be changeable after the fact from
+    /// its own editor.
+    func testAssigningAGymInThePlanEditorShowsItInThePlanList() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--uitesting"]
+        app.launch()
+
+        app.tabBars.buttons["Einstellungen"].tap()
+        app.staticTexts["Gyms"].tap()
+        createGym(app, name: "Frankfurt")
+
+        app.tabBars.buttons["Pläne"].tap()
+        app.navigationBars.buttons["Plan hinzufügen"].tap()
+        XCTAssertTrue(app.textFields["Planname"].waitForExistence(timeout: 5))
+
+        app.buttons["Gym"].tap()
+        app.buttons["Frankfurt"].tap()
+        app.buttons["BackButton"].tap()
+
+        XCTAssertTrue(app.staticTexts["0 Übungen · Frankfurt"].waitForExistence(timeout: 5))
+    }
+
     func testGymConversionFactorPersistsAfterEditing() {
         let app = XCUIApplication()
         app.launchArguments = ["--uitesting"]
@@ -1038,6 +1168,30 @@ final class GymTrackUITests: XCTestCase {
 
         swipeHittableElement(app, identifier: "Satz 0 Gewicht", right: true)
         XCTAssertTrue(app.buttons["Erledigt"].waitForExistence(timeout: 5))
+    }
+
+    /// The completion circle at the right edge of a set row must itself be tappable (not just
+    /// reachable via the leading swipe action) — and tapping it again must flip it back, proving
+    /// the tap genuinely toggles state instead of only ever marking a set done.
+    func testTappingTheCompletionCircleTogglesErledigt() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--uitesting"]
+        app.launch()
+        startWorkoutFromFreshPlan(app)
+
+        let toggle = app.buttons["Satz 0 Erledigt"]
+        XCTAssertTrue(toggle.waitForExistence(timeout: 5))
+        XCTAssertEqual(toggle.label, "Satz 1, nicht erledigt")
+
+        // Uses the same hittable-candidate-filtering tap helper as every other button in a
+        // swipeable row (see tapHittableButton's doc comment) rather than a bare .tap(), since
+        // this button lives in the same row as "Satz 0 Gewicht", which is documented elsewhere
+        // to need that defense against ambiguous duplicate accessibility elements.
+        tapHittableButton(app, identifier: "Satz 0 Erledigt")
+        XCTAssertEqual(toggle.label, "Satz 1, erledigt")
+
+        tapHittableButton(app, identifier: "Satz 0 Erledigt")
+        XCTAssertEqual(toggle.label, "Satz 1, nicht erledigt")
     }
 
     /// Regression: once a set's completion is manually overridden via swipe, any later edit to

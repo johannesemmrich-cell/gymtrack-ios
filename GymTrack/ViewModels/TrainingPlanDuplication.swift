@@ -5,7 +5,7 @@ import Foundation
 /// into a ModelContext; the caller must insert the plan and every copied entry explicitly.
 enum TrainingPlanDuplication {
     static func duplicate(_ plan: TrainingPlan) -> (plan: TrainingPlan, planExercises: [PlanExercise]) {
-        let copy = TrainingPlan(name: "\(plan.name) (Kopie)", note: plan.note)
+        let copy = TrainingPlan(name: "\(plan.name) (Kopie)", note: plan.note, gym: plan.gym)
         let sourceExercises = (plan.exercises ?? []).sorted { $0.order < $1.order }
 
         let copiedExercises = sourceExercises.map { source in
