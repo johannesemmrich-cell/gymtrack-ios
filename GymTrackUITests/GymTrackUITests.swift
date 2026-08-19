@@ -20,8 +20,8 @@ final class GymTrackUITests: XCTestCase {
         // The default plan already pre-fills 3 sets (Satz 0/1/2).
         app.buttons["Satz hinzufügen"].tap()
 
-        XCTAssertTrue(app.buttons["Satz 3"].waitForExistence(timeout: 5))
-        XCTAssertFalse(app.buttons["Satz 4"].exists, "Tapping 'Satz hinzufügen' once must create exactly one new set")
+        XCTAssertTrue(app.textFields["Satz 3 Gewicht"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.textFields["Satz 4 Gewicht"].exists, "Tapping 'Satz hinzufügen' once must create exactly one new set")
     }
 
     /// Same regression as `testAddingASetCreatesExactlyOneNewSetNotTwo`, but for the
@@ -37,9 +37,9 @@ final class GymTrackUITests: XCTestCase {
 
         // A single warmup shifts the 3 pre-filled sets to Satz 1/2/3, adding the warmup at
         // Satz 0. If the merged-tap-target bug were still present, Satz 4 would also exist.
-        XCTAssertTrue(app.buttons["Satz 0"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.buttons["Satz 3"].exists)
-        XCTAssertFalse(app.buttons["Satz 4"].exists, "Tapping 'Aufwärmsatz' once must create exactly one new set")
+        XCTAssertTrue(app.textFields["Satz 0 Gewicht"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.textFields["Satz 3 Gewicht"].exists)
+        XCTAssertFalse(app.textFields["Satz 4 Gewicht"].exists, "Tapping 'Aufwärmsatz' once must create exactly one new set")
     }
 
     func testAppLaunchesAndShowsTabBar() {
@@ -145,6 +145,86 @@ final class GymTrackUITests: XCTestCase {
         XCTAssertTrue(app.buttons[name].waitForExistence(timeout: 5))
     }
 
+    /// Unlocking developer mode (5× tap on the version number + correct password) reveals the
+    /// "Entwicklermodus" section in Einstellungen that's hidden otherwise.
+    func testUnlockingDeveloperModeViaVersionTapShowsDevModeSection() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--uitesting"]
+        app.launch()
+
+        app.tabBars.buttons["Einstellungen"].tap()
+        XCTAssertFalse(app.buttons["Entwicklermodus"].exists, "Dev mode section must be hidden before unlocking")
+
+        unlockDeveloperMode(app)
+
+        XCTAssertTrue(app.buttons["Entwicklermodus"].waitForExistence(timeout: 5))
+    }
+
+    func testWrongPasswordShowsErrorAndKeepsDeveloperModeOff() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--uitesting"]
+        app.launch()
+
+        app.tabBars.buttons["Einstellungen"].tap()
+        let versionButton = app.buttons["AppVersion"]
+        XCTAssertTrue(versionButton.waitForExistence(timeout: 5))
+        for _ in 0..<5 { versionButton.tap() }
+
+        let passwordField = app.secureTextFields["Passwort"]
+        XCTAssertTrue(passwordField.waitForExistence(timeout: 5))
+        passwordField.tap()
+        passwordField.typeText("falschesPasswort123")
+        app.buttons["Bestätigen"].tap()
+
+        XCTAssertTrue(app.staticTexts["Falsches Passwort."].waitForExistence(timeout: 5))
+
+        app.buttons["Abbrechen"].tap()
+        XCTAssertFalse(app.buttons["Entwicklermodus"].exists, "A wrong password must not activate developer mode")
+    }
+
+    func testSubmittingFeedbackViaThumbsDownCreatesEntryInDeveloperMode() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--uitesting"]
+        app.launch()
+        unlockDeveloperMode(app)
+
+        let feedbackButton = app.buttons["Feedback geben"]
+        XCTAssertTrue(feedbackButton.waitForExistence(timeout: 5))
+        feedbackButton.tap()
+
+        XCTAssertTrue(app.navigationBars["Feedback senden"].waitForExistence(timeout: 5))
+        let notesField = app.textViews["Feedback-Notiz"]
+        XCTAssertTrue(notesField.waitForExistence(timeout: 5))
+        notesField.tap()
+        notesField.typeText("Testfeedback-Eintrag")
+        app.buttons["Speichern"].tap()
+
+        app.buttons["Entwicklermodus"].tap()
+        XCTAssertTrue(app.staticTexts["Testfeedback-Eintrag"].waitForExistence(timeout: 5))
+    }
+
+    func testAddingATodoInDeveloperModeShowsItAndCanBeMarkedDone() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--uitesting"]
+        app.launch()
+        unlockDeveloperMode(app)
+
+        app.buttons["Entwicklermodus"].tap()
+        XCTAssertTrue(app.navigationBars["Entwicklermodus"].waitForExistence(timeout: 5))
+
+        app.buttons["Neues To-Do"].tap()
+        let titleField = app.textFields["Titel"]
+        XCTAssertTrue(titleField.waitForExistence(timeout: 5))
+        titleField.tap()
+        titleField.typeText("Testaufgabe")
+        app.buttons["Hinzufügen"].tap()
+
+        XCTAssertTrue(app.staticTexts["Testaufgabe"].waitForExistence(timeout: 5))
+
+        app.buttons["Als erledigt markieren"].tap()
+        XCTAssertTrue(app.buttons["Als offen markieren"].waitForExistence(timeout: 5))
+    }
+
     func testAddingCustomExerciseShowsItInLibrary() {
         let app = XCUIApplication()
         app.launchArguments = ["--uitesting"]
@@ -167,8 +247,9 @@ final class GymTrackUITests: XCTestCase {
         // With ~35 seeded default exercises, the new one (grouped under "Sonstiges", the last
         // section) can be off-screen — SwiftUI's List only renders visible cells lazily. Scroll
         // down until it appears rather than relying on the exact accessibility shape of
-        // .searchable's search field. ExerciseRow uses .accessibilityElement(children: .combine),
-        // so query by identifier across any element type instead of assuming staticText.
+        // .searchable's search field. The row has no explicit .accessibilityIdentifier of its
+        // own — it's found via the wrapping NavigationLink's auto-derived identifier — so query
+        // by identifier across any element type instead of assuming a specific one.
         let newExerciseRow = app.descendants(matching: .any)["Meine Testübung"]
         var attempts = 0
         while !newExerciseRow.exists && attempts < 15 {
@@ -176,6 +257,90 @@ final class GymTrackUITests: XCTestCase {
             attempts += 1
         }
         XCTAssertTrue(newExerciseRow.exists)
+    }
+
+    func testSwipingAnExerciseDeletesItFromTheLibrary() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--uitesting"]
+        app.launch()
+
+        app.tabBars.buttons["Einstellungen"].tap()
+        app.staticTexts["Übungen"].tap()
+
+        app.navigationBars.buttons["Übung hinzufügen"].tap()
+        let nameField = app.textFields["Übungsname"]
+        XCTAssertTrue(nameField.waitForExistence(timeout: 5))
+        nameField.tap()
+        nameField.typeText("Löschbare Testübung")
+        app.buttons["Sichern"].tap()
+
+        let newExerciseRow = app.descendants(matching: .any)["Löschbare Testübung"]
+        var attempts = 0
+        while !newExerciseRow.exists && attempts < 15 {
+            app.swipeUp()
+            attempts += 1
+        }
+        XCTAssertTrue(newExerciseRow.exists)
+
+        newExerciseRow.swipeLeft()
+        app.buttons["Löschen"].tap()
+
+        XCTAssertFalse(app.descendants(matching: .any)["Löschbare Testübung"].exists)
+    }
+
+    /// End-to-end: logging a real set, then setting a long-term goal above it shows the correct
+    /// "Aktuell"/"Noch" progress text, and lowering the target to/below the logged best flips
+    /// the row to "Ziel erreicht".
+    func testExerciseGoalShowsProgressTowardLoggedBest() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--uitesting"]
+        app.launch()
+        startWorkoutFromFreshPlan(app)
+
+        let weightField = app.textFields["Satz 0 Gewicht"]
+        XCTAssertTrue(weightField.waitForExistence(timeout: 5))
+        weightField.tap()
+        weightField.typeText("80")
+        let repsField = app.textFields["Satz 0 Wdh"]
+        repsField.tap()
+        repsField.typeText("10")
+        app.navigationBars.firstMatch.tap()
+
+        app.navigationBars.buttons["Beenden"].tap()
+        if app.alerts.firstMatch.waitForExistence(timeout: 3) {
+            app.buttons["Entfernen & Beenden"].tap()
+        }
+        XCTAssertTrue(app.buttons["Neuer Plan"].waitForExistence(timeout: 5))
+
+        app.tabBars.buttons["Einstellungen"].tap()
+        app.staticTexts["Übungen"].tap()
+
+        // The row resolves to two accessibility elements sharing the identifier "Bankdrücken"
+        // (the real tappable NavigationLink row plus a non-hittable List-row backing element) —
+        // same ambiguity class `tapHittableButton` already exists to resolve elsewhere.
+        tapHittableButton(app, identifier: "Bankdrücken")
+
+        let weightGoalField = app.textFields["Zielgewicht"]
+        XCTAssertTrue(weightGoalField.waitForExistence(timeout: 5))
+        weightGoalField.tap()
+        weightGoalField.typeText("100")
+        app.navigationBars.firstMatch.tap()
+
+        XCTAssertTrue(app.staticTexts["Aktuell: 80 kg"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Noch 20 kg"].waitForExistence(timeout: 5))
+
+        let repsGoalField = app.textFields["Ziel-Wiederholungen"]
+        XCTAssertTrue(repsGoalField.waitForExistence(timeout: 5))
+        repsGoalField.tap()
+        repsGoalField.typeText("15")
+        app.navigationBars.firstMatch.tap()
+        XCTAssertTrue(app.staticTexts["Aktuell: 10 Wdh."].waitForExistence(timeout: 5))
+
+        // Lowering the target to/below the logged best should flip the row to "Ziel erreicht".
+        weightGoalField.doubleTap()
+        weightGoalField.typeText("70")
+        app.navigationBars.firstMatch.tap()
+        XCTAssertTrue(app.staticTexts["Ziel erreicht"].waitForExistence(timeout: 5))
     }
 
     func testCreatingPlanAndAddingExerciseShowsItInEditor() {
@@ -205,6 +370,94 @@ final class GymTrackUITests: XCTestCase {
 
         // Back in the editor, the newly added exercise should now be the only row.
         XCTAssertTrue(app.buttons["Bankdrücken"].waitForExistence(timeout: 5))
+    }
+
+    /// PlanExerciseEditView shares the same weight-field pattern as the rest of the app, but
+    /// targetWeight is Optional<Double> there. A freshly-added plan-exercise never had a
+    /// weight entered, so its field must render empty, not "0.0" — this is the UI-visible
+    /// half of the nil-vs-zero distinction (the parsing itself is unit-tested in
+    /// WeightInputTests, which also directly covers what "clearing the field" resolves to).
+    func testFreshPlanExerciseWeightFieldStartsEmptyNotZero() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--uitesting"]
+        app.launch()
+
+        app.tabBars.buttons["Pläne"].tap()
+        app.navigationBars.buttons["Plan hinzufügen"].tap()
+        XCTAssertTrue(app.textFields["Planname"].waitForExistence(timeout: 5))
+        app.buttons["Übung hinzufügen"].tap()
+        let pickerOption = app.buttons["Bankdrücken"]
+        XCTAssertTrue(pickerOption.waitForExistence(timeout: 5))
+        pickerOption.tap()
+        let exerciseRow = app.buttons["Bankdrücken"]
+        XCTAssertTrue(exerciseRow.waitForExistence(timeout: 5))
+
+        exerciseRow.tap()
+        let weightField = app.textFields["Zielgewicht"]
+        XCTAssertTrue(weightField.waitForExistence(timeout: 5))
+        // XCUITest reports an empty TextField's value as its placeholder text ("optional",
+        // set in PlanExerciseEditView), not "" — both indicate "no weight entered".
+        let renderedValue = (weightField.value as? String) ?? ""
+        XCTAssertTrue(
+            renderedValue.isEmpty || renderedValue == "optional",
+            "A never-set target weight must render as an empty field, not '0.0' — got '\(renderedValue)'"
+        )
+        app.buttons["Fertig"].tap()
+    }
+
+    /// End-to-end: marking a plan-exercise unilateral changes the plan-editor summary,
+    /// doubles the sets in the manual-start preview and the live session (alternating sides
+    /// per set number, not all-left-then-all-right), and labels each row's field with its side.
+    func testUnilateralExerciseAlternatesLeftAndRightSetLabels() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--uitesting"]
+        app.launch()
+
+        app.tabBars.buttons["Pläne"].tap()
+        app.navigationBars.buttons["Plan hinzufügen"].tap()
+        XCTAssertTrue(app.textFields["Planname"].waitForExistence(timeout: 5))
+        app.buttons["Übung hinzufügen"].tap()
+        let pickerOption = app.buttons["Bankdrücken"]
+        XCTAssertTrue(pickerOption.waitForExistence(timeout: 5))
+        pickerOption.tap()
+        let exerciseRow = app.buttons["Bankdrücken"]
+        XCTAssertTrue(exerciseRow.waitForExistence(timeout: 5))
+
+        exerciseRow.tap()
+        let unilateralToggle = app.switches["Einarmig/einseitig"]
+        XCTAssertTrue(unilateralToggle.waitForExistence(timeout: 5))
+        // Mirrors the documented pattern for this Toggle shape elsewhere in the suite: the
+        // outer row-sized "Switch" element doesn't propagate a tap to the real inner control.
+        unilateralToggle.switches.firstMatch.tap()
+        app.buttons["Fertig"].tap()
+
+        // Back in the plan editor, the row's combined accessibility label reflects "pro Seite".
+        XCTAssertTrue(app.buttons["Bankdrücken"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Bankdrücken"].label.contains("pro Seite"))
+
+        app.tabBars.buttons["Training"].tap()
+        let startPlanButton = app.buttons["Neuer Plan"]
+        XCTAssertTrue(startPlanButton.waitForExistence(timeout: 5))
+        startPlanButton.tap()
+
+        // The manual-start preview already mirrors the doubled, alternating sides.
+        XCTAssertTrue(app.staticTexts["Bankdrücken"].waitForExistence(timeout: 5))
+        let confirmStart = app.buttons["Training starten"]
+        XCTAssertTrue(confirmStart.waitForExistence(timeout: 5))
+        confirmStart.tap()
+
+        XCTAssertTrue(app.navigationBars.buttons["Beenden"].waitForExistence(timeout: 5))
+        // The first two generated sets (order 0 and 1) are the first exercise's first left/right
+        // pair — real identifiers are order-based, not side-based, so existence alone wouldn't
+        // catch a broken alternation. Checking each Kennung's own accessibility label does.
+        let firstKennung = app.staticTexts["Satz 0 Kennung"]
+        XCTAssertTrue(firstKennung.waitForExistence(timeout: 5))
+        XCTAssertEqual(firstKennung.label, "Satz 1 L, Links")
+        let secondKennung = app.staticTexts["Satz 1 Kennung"]
+        XCTAssertTrue(secondKennung.waitForExistence(timeout: 5))
+        XCTAssertEqual(secondKennung.label, "Satz 1 R, Rechts")
+        XCTAssertTrue(app.textFields["Satz 0 Gewicht"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.textFields["Satz 1 Gewicht"].waitForExistence(timeout: 5))
     }
 
     func testGroupingTwoExercisesShowsASupersetIndicatorOnBoth() {
@@ -394,43 +647,39 @@ final class GymTrackUITests: XCTestCase {
         pickerOption.tap()
         XCTAssertTrue(app.buttons["Bankdrücken"].waitForExistence(timeout: 5))
 
-        // Start it from the Training tab.
+        // Start it from the Training tab, via the manual-start preview.
         app.tabBars.buttons["Training"].tap()
         let startPlanButton = app.buttons["Neuer Plan"]
         XCTAssertTrue(startPlanButton.waitForExistence(timeout: 5))
         startPlanButton.tap()
+        let confirmStart = app.buttons["Training starten"]
+        XCTAssertTrue(confirmStart.waitForExistence(timeout: 5))
+        confirmStart.tap()
 
-        // The workout screen should show the exercise as a section with its pre-filled sets,
-        // and a way to end the workout.
+        // The workout screen should show the exercise's pre-filled sets and a way to end it.
         XCTAssertTrue(app.navigationBars.buttons["Beenden"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["Bankdrücken"].waitForExistence(timeout: 5))
 
-        // Editing the first set should open its edit sheet.
-        let firstSetRow = app.buttons.matching(NSPredicate(format: "label CONTAINS 'kg'")).firstMatch
-        XCTAssertTrue(firstSetRow.waitForExistence(timeout: 5))
-        firstSetRow.tap()
-
-        let repsStepper = app.steppers.firstMatch
-        XCTAssertTrue(repsStepper.waitForExistence(timeout: 5))
-
         // Regression test: typing a multi-digit weight must not corrupt the value via a
-        // get/set round-trip through the live text field (a real bug found during review —
-        // "55" was ending up stored as "5.05"). Check after EVERY keystroke, not just the
-        // final value, since a mid-typing corruption could theoretically self-correct by the
-        // last character.
-        let weightField = app.textFields["Satz-Gewicht"]
+        // get/set round-trip through the live text field. Checked after EVERY keystroke, not
+        // just the final value, since a mid-typing corruption could theoretically self-correct
+        // by the last character.
+        let weightField = app.textFields["Satz 0 Gewicht"]
         XCTAssertTrue(weightField.waitForExistence(timeout: 5))
         weightField.tap()
         typeAndCheckEachKeystroke(weightField, "55")
+        app.navigationBars.firstMatch.tap()
 
-        app.buttons["Fertig"].tap()
+        // Filling in reps too now auto-completes the row — check the row's own swipe-action
+        // state reflects that instead of assuming ending the workout skips the incomplete-sets
+        // alert outright (the other 2 default sets are still empty).
+        let repsField = app.textFields["Satz 0 Wdh"]
+        repsField.tap()
+        repsField.typeText("10")
+        app.navigationBars.firstMatch.tap()
 
-        // Reopen the same set and confirm the persisted weight round-trips correctly too.
-        firstSetRow.tap()
-        let reopenedWeightField = app.textFields["Satz-Gewicht"]
-        XCTAssertTrue(reopenedWeightField.waitForExistence(timeout: 5))
-        XCTAssertEqual(reopenedWeightField.value as? String, "55.0")
-        app.buttons["Fertig"].tap()
+        swipeHittableElement(app, identifier: "Satz 0 Gewicht", right: true)
+        XCTAssertTrue(app.buttons["Nicht erledigt"].waitForExistence(timeout: 5), "Satz 0 should already be auto-completed after weight+reps were both entered")
     }
 
     func testStartingAWorkoutFromAPlanWithGroupedExercisesShowsTheSupersetCaption() {
@@ -485,6 +734,9 @@ final class GymTrackUITests: XCTestCase {
         let startPlanButton = app.buttons["Neuer Plan"]
         XCTAssertTrue(startPlanButton.waitForExistence(timeout: 5))
         startPlanButton.tap()
+        let confirmStart = app.buttons["Training starten"]
+        XCTAssertTrue(confirmStart.waitForExistence(timeout: 5))
+        confirmStart.tap()
 
         XCTAssertTrue(app.navigationBars.buttons["Beenden"].waitForExistence(timeout: 5))
         // The grouping made at plan-editing time must carry through into the active session.
@@ -492,12 +744,9 @@ final class GymTrackUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["🔗 Superset mit Bankdrücken"].waitForExistence(timeout: 5))
     }
 
-    /// PlanExerciseEditView shares the same weight-field pattern as SetEditView, but
-    /// targetWeight is Optional<Double> there. A freshly-added plan-exercise never had a
-    /// weight entered, so its field must render empty, not "0.0" — this is the UI-visible
-    /// half of the nil-vs-zero distinction (the parsing itself is unit-tested in
-    /// WeightInputTests, which also directly covers what "clearing the field" resolves to).
-    func testFreshPlanExerciseWeightFieldStartsEmptyNotZero() {
+    /// The preview must show the plan's exercises with a "Training starten" confirm button —
+    /// and, critically, no session must exist yet at this point (no "Beenden" button).
+    func testManualStartPreviewShowsPlanBeforeSessionIsCreated() {
         let app = XCUIApplication()
         app.launchArguments = ["--uitesting"]
         app.launch()
@@ -509,20 +758,219 @@ final class GymTrackUITests: XCTestCase {
         let pickerOption = app.buttons["Bankdrücken"]
         XCTAssertTrue(pickerOption.waitForExistence(timeout: 5))
         pickerOption.tap()
-        let exerciseRow = app.buttons["Bankdrücken"]
-        XCTAssertTrue(exerciseRow.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Bankdrücken"].waitForExistence(timeout: 5))
 
-        exerciseRow.tap()
-        let weightField = app.textFields["Zielgewicht"]
+        app.tabBars.buttons["Training"].tap()
+        let startPlanButton = app.buttons["Neuer Plan"]
+        XCTAssertTrue(startPlanButton.waitForExistence(timeout: 5))
+        startPlanButton.tap()
+
+        XCTAssertTrue(app.staticTexts["Bankdrücken"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Training starten"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.navigationBars.buttons["Beenden"].exists, "No session should exist until 'Training starten' is tapped")
+    }
+
+    /// Backing out of the manual-start preview (without tapping "Training starten") must leave
+    /// no trace — no session created, still offered to start the same plan afterward.
+    func testBackingOutOfManualStartPreviewCreatesNoSession() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--uitesting"]
+        app.launch()
+
+        app.tabBars.buttons["Pläne"].tap()
+        app.navigationBars.buttons["Plan hinzufügen"].tap()
+        XCTAssertTrue(app.textFields["Planname"].waitForExistence(timeout: 5))
+        app.buttons["Übung hinzufügen"].tap()
+        let pickerOption = app.buttons["Bankdrücken"]
+        XCTAssertTrue(pickerOption.waitForExistence(timeout: 5))
+        pickerOption.tap()
+        XCTAssertTrue(app.buttons["Bankdrücken"].waitForExistence(timeout: 5))
+
+        app.tabBars.buttons["Training"].tap()
+        let startPlanButton = app.buttons["Neuer Plan"]
+        XCTAssertTrue(startPlanButton.waitForExistence(timeout: 5))
+        startPlanButton.tap()
+        XCTAssertTrue(app.buttons["Training starten"].waitForExistence(timeout: 5))
+
+        app.buttons["BackButton"].tap()
+
+        // No session was created — the Training tab still offers to start the plan, not resume one.
+        XCTAssertTrue(app.buttons["Neuer Plan"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.navigationBars.buttons["Beenden"].exists)
+    }
+
+    /// A fresh session's ghost weight shows as a placeholder derived from history, and typing
+    /// only reps (never touching weight) silently fills weight from that same ghost value —
+    /// proven indirectly via auto-completion, since a placeholder-only field still isn't real.
+    func testGhostWeightIsShownAsPlaceholderAndAutofillsOnceRepsAreEntered() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--uitesting"]
+        app.launch()
+
+        // SetSuggestion.suggest is only ever consulted when there's an active gym
+        // (gym.flatMap { ... } in both WorkoutSessionBuilder and PlanStartView) — without one,
+        // the ghost value falls back to the plan's own (here: unset) target instead of history.
+        app.tabBars.buttons["Einstellungen"].tap()
+        app.staticTexts["Gyms"].tap()
+        createGym(app, name: "Testgym")
+        let gymButton = app.buttons["Testgym"]
+        XCTAssertTrue(gymButton.waitForExistence(timeout: 5))
+        gymButton.tap()
+        XCTAssertTrue(gymButton.isSelected)
+
+        startWorkoutFromFreshPlan(app)
+
+        // Log a real weight/reps so the next session for the same exercise has history to
+        // suggest from.
+        let weightField = app.textFields["Satz 0 Gewicht"]
         XCTAssertTrue(weightField.waitForExistence(timeout: 5))
-        // XCUITest reports an empty TextField's value as its placeholder text ("optional",
-        // set in PlanExerciseEditView), not "" — both indicate "no weight entered".
-        let renderedValue = (weightField.value as? String) ?? ""
-        XCTAssertTrue(
-            renderedValue.isEmpty || renderedValue == "optional",
-            "A never-set target weight must render as an empty field, not '0.0' — got '\(renderedValue)'"
-        )
-        app.buttons["Fertig"].tap()
+        weightField.tap()
+        weightField.typeText("70")
+        let repsField = app.textFields["Satz 0 Wdh"]
+        repsField.tap()
+        repsField.typeText("8")
+        app.navigationBars.firstMatch.tap()
+
+        app.navigationBars.buttons["Beenden"].tap()
+        if app.alerts.firstMatch.waitForExistence(timeout: 3) {
+            app.buttons["Entfernen & Beenden"].tap()
+        }
+        XCTAssertTrue(app.buttons["Neuer Plan"].waitForExistence(timeout: 5))
+
+        // Start a fresh session for the same plan — its first set should ghost-suggest 70 kg.
+        let startPlanButton = app.buttons["Neuer Plan"]
+        XCTAssertTrue(startPlanButton.waitForExistence(timeout: 5))
+        startPlanButton.tap()
+        let confirmStart = app.buttons["Training starten"]
+        XCTAssertTrue(confirmStart.waitForExistence(timeout: 5))
+        confirmStart.tap()
+        XCTAssertTrue(app.navigationBars.buttons["Beenden"].waitForExistence(timeout: 5))
+
+        let newWeightField = app.textFields["Satz 0 Gewicht"]
+        XCTAssertTrue(newWeightField.waitForExistence(timeout: 5))
+        // An untouched field renders its ghost suggestion as the native (dimmed) placeholder —
+        // XCUITest reads a placeholder-only TextField's value as that placeholder text.
+        XCTAssertEqual(newWeightField.value as? String, "70.0")
+
+        // Typing only reps must silently fill the weight from that same ghost value.
+        let newRepsField = app.textFields["Satz 0 Wdh"]
+        newRepsField.tap()
+        newRepsField.typeText("8")
+        app.navigationBars.firstMatch.tap()
+
+        // Proof the weight became a REAL value (not just still showing the placeholder): check
+        // the row's own swipe-action state instead of assuming the whole-workout end flow
+        // skips the incomplete-sets alert outright (the other 2 default sets are still empty).
+        swipeHittableElement(app, identifier: "Satz 0 Gewicht", right: true)
+        XCTAssertTrue(app.buttons["Nicht erledigt"].waitForExistence(timeout: 5), "Satz 0 should already be auto-completed after the ghost weight silently filled in")
+    }
+
+    /// Regression: an explicit "0" the user actually typed must never be silently overwritten
+    /// by a later ghost-to-real autofill — only a genuinely untouched field may be autofilled.
+    func testExplicitZeroWeightIsNotOverwrittenByGhostAutofill() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--uitesting"]
+        app.launch()
+
+        // SetSuggestion.suggest is only ever consulted when there's an active gym — without
+        // one, there's no real ghost value to guard against in the first place.
+        app.tabBars.buttons["Einstellungen"].tap()
+        app.staticTexts["Gyms"].tap()
+        createGym(app, name: "Testgym")
+        let gymButton = app.buttons["Testgym"]
+        XCTAssertTrue(gymButton.waitForExistence(timeout: 5))
+        gymButton.tap()
+        XCTAssertTrue(gymButton.isSelected)
+
+        startWorkoutFromFreshPlan(app)
+
+        // Log real history first so the next session has a non-zero ghost weight that a broken
+        // guard could otherwise use to silently overwrite the explicit "0" below.
+        let firstWeightField = app.textFields["Satz 0 Gewicht"]
+        XCTAssertTrue(firstWeightField.waitForExistence(timeout: 5))
+        firstWeightField.tap()
+        firstWeightField.typeText("60")
+        let firstRepsField = app.textFields["Satz 0 Wdh"]
+        firstRepsField.tap()
+        firstRepsField.typeText("10")
+        app.navigationBars.firstMatch.tap()
+
+        app.navigationBars.buttons["Beenden"].tap()
+        if app.alerts.firstMatch.waitForExistence(timeout: 3) {
+            app.buttons["Entfernen & Beenden"].tap()
+        }
+        XCTAssertTrue(app.buttons["Neuer Plan"].waitForExistence(timeout: 5))
+
+        let startPlanButton = app.buttons["Neuer Plan"]
+        XCTAssertTrue(startPlanButton.waitForExistence(timeout: 5))
+        startPlanButton.tap()
+        let confirmStart = app.buttons["Training starten"]
+        XCTAssertTrue(confirmStart.waitForExistence(timeout: 5))
+        confirmStart.tap()
+        XCTAssertTrue(app.navigationBars.buttons["Beenden"].waitForExistence(timeout: 5))
+
+        let weightField = app.textFields["Satz 0 Gewicht"]
+        XCTAssertTrue(weightField.waitForExistence(timeout: 5))
+        weightField.tap()
+        weightField.typeText("0")
+
+        let repsField = app.textFields["Satz 0 Wdh"]
+        repsField.tap()
+        repsField.typeText("12")
+        app.navigationBars.firstMatch.tap()
+
+        XCTAssertEqual(weightField.value as? String, "0")
+    }
+
+    /// The Gesamt-/Übungsansicht toggle only appears once there's more than one exercise, and
+    /// switching to Übungsansicht focuses one exercise at a time with prev/next navigation.
+    func testSwitchingToUebungsansichtShowsFocusedExerciseWithNavigation() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--uitesting"]
+        app.launch()
+
+        app.tabBars.buttons["Pläne"].tap()
+        app.navigationBars.buttons["Plan hinzufügen"].tap()
+        XCTAssertTrue(app.textFields["Planname"].waitForExistence(timeout: 5))
+        app.buttons["Übung hinzufügen"].tap()
+        let bench = app.buttons["Bankdrücken"]
+        XCTAssertTrue(bench.waitForExistence(timeout: 5))
+        bench.tap()
+        waitForDisappearance(app.navigationBars["Übung auswählen"])
+
+        app.buttons["Übung hinzufügen"].tap()
+        let searchField = app.searchFields["Übung suchen"]
+        XCTAssertTrue(searchField.waitForExistence(timeout: 5))
+        searchField.tap()
+        searchField.typeText("Kniebeugen")
+        let squats = app.buttons["Kniebeugen"]
+        XCTAssertTrue(squats.waitForExistence(timeout: 5))
+        squats.tap()
+        waitForDisappearance(app.navigationBars["Übung auswählen"])
+        XCTAssertTrue(app.buttons["Kniebeugen"].waitForExistence(timeout: 5))
+
+        app.tabBars.buttons["Training"].tap()
+        let startPlanButton = app.buttons["Neuer Plan"]
+        XCTAssertTrue(startPlanButton.waitForExistence(timeout: 5))
+        startPlanButton.tap()
+        let confirmStart = app.buttons["Training starten"]
+        XCTAssertTrue(confirmStart.waitForExistence(timeout: 5))
+        confirmStart.tap()
+        XCTAssertTrue(app.navigationBars.buttons["Beenden"].waitForExistence(timeout: 5))
+
+        // With 2 exercises, the view-mode toggle should appear.
+        let viewToggle = app.segmentedControls["Ansicht-Umschalter"]
+        XCTAssertTrue(viewToggle.waitForExistence(timeout: 5))
+        viewToggle.buttons["Übungsansicht"].tap()
+
+        // Not asserting a specific element type here — an HStack container's accessibility
+        // type as bridged to XCUITest isn't guaranteed (e.g. "Übungsansicht-Kopf" wraps two
+        // real Buttons, which can shift how the container itself gets categorized).
+        XCTAssertTrue(app.descendants(matching: .any)["Übungsansicht-Kopf"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Bankdrücken"].waitForExistence(timeout: 5))
+
+        app.buttons["Nächste Übung"].tap()
+        XCTAssertTrue(app.staticTexts["Kniebeugen"].waitForExistence(timeout: 5))
     }
 
     /// Ending a workout that still has un-toggled sets must prompt once, in one tap remove
@@ -542,7 +990,8 @@ final class GymTrackUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Neuer Plan"].waitForExistence(timeout: 5))
     }
 
-    /// If every set was already marked done, ending must not interrupt with a prompt at all.
+    /// If every set auto-completed (real weight + reps entered), ending must not interrupt
+    /// with a prompt at all.
     func testEndingWorkoutWithAllSetsCompletedSkipsPrompt() {
         let app = XCUIApplication()
         app.launchArguments = ["--uitesting"]
@@ -550,22 +999,16 @@ final class GymTrackUITests: XCTestCase {
         startWorkoutFromFreshPlan(app)
 
         // The exercise defaults to 3 target sets (no history yet, PlanExerciseDefaults
-        // fallback). Each SetRow carries a deterministic "Satz <order>" identifier
-        // (0, 1, 2), so mark every one of them done by address rather than by content —
-        // all 3 rows render identically ("0 kg × 10") until touched, which makes
-        // position/content-based queries unreliable once one row's state changes.
+        // fallback) — fill weight and reps on each so all three auto-complete.
         for order in 0..<3 {
-            let row = app.buttons["Satz \(order)"]
-            XCTAssertTrue(row.waitForExistence(timeout: 5))
-            row.tap()
-            let toggle = app.switches["Satz erledigt"]
-            XCTAssertTrue(toggle.waitForExistence(timeout: 5))
-            // SwiftUI's Toggle exposes a row-sized outer "Switch" element (matched by our
-            // accessibility label) wrapping the actual iOS switch widget as an unlabeled
-            // inner "Switch" — tapping the outer element doesn't propagate to flip the real
-            // control, so tap the inner one directly.
-            toggle.switches.firstMatch.tap()
-            app.buttons["Fertig"].tap()
+            let weightField = app.textFields["Satz \(order) Gewicht"]
+            XCTAssertTrue(weightField.waitForExistence(timeout: 5))
+            weightField.tap()
+            weightField.typeText("50")
+            let repsField = app.textFields["Satz \(order) Wdh"]
+            repsField.tap()
+            repsField.typeText("10")
+            app.navigationBars.firstMatch.tap()
         }
 
         app.navigationBars.buttons["Beenden"].tap()
@@ -573,46 +1016,62 @@ final class GymTrackUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Neuer Plan"].waitForExistence(timeout: 5))
     }
 
-    /// A leading-edge swipe action toggles "Erledigt" right in the list — the whole point is
-    /// to avoid having to open the edit sheet just to flip one checkbox, so this asserts the
-    /// edit sheet never appears at all (no "Satz-Gewicht" field shows up) while the row's own
-    /// label still reflects the new state (relies on SetRow's explicit accessibilityLabel,
-    /// which names completion state directly rather than leaving it to the SF Symbol's own
-    /// system description).
-    func testSwipingASetTogglesErledigtWithoutOpeningTheEditSheet() {
+    /// A leading-edge swipe action toggles "Erledigt" manually, independent of the
+    /// weight-and-reps auto-completion rule — and toggling again flips it back, proving the
+    /// state genuinely changes rather than the button label being static.
+    func testSwipingASetTogglesErledigtManually() {
         let app = XCUIApplication()
         app.launchArguments = ["--uitesting"]
         app.launch()
         startWorkoutFromFreshPlan(app)
 
-        let row = app.buttons["Satz 0"]
-        XCTAssertTrue(row.waitForExistence(timeout: 5))
-        XCTAssertTrue(row.label.contains("nicht erledigt"))
-
-        row.swipeRight()
+        swipeHittableElement(app, identifier: "Satz 0 Gewicht", right: true)
         let markDoneButton = app.buttons["Erledigt"]
         XCTAssertTrue(markDoneButton.waitForExistence(timeout: 5))
         markDoneButton.tap()
 
-        XCTAssertFalse(app.textFields["Satz-Gewicht"].waitForExistence(timeout: 2), "Swiping to mark a set done must not open the edit sheet")
-        XCTAssertTrue(row.waitForExistence(timeout: 5))
-        XCTAssertTrue(row.label.contains("erledigt") && !row.label.contains("nicht erledigt"))
-
-        // Toggling back must work the same way, now revealing "Nicht erledigt" instead.
-        row.swipeRight()
+        // Toggling back must offer "Nicht erledigt" instead, proving the state actually flipped.
+        swipeHittableElement(app, identifier: "Satz 0 Gewicht", right: true)
         let markUndoneButton = app.buttons["Nicht erledigt"]
         XCTAssertTrue(markUndoneButton.waitForExistence(timeout: 5))
         markUndoneButton.tap()
 
-        XCTAssertTrue(row.waitForExistence(timeout: 5))
-        XCTAssertTrue(row.label.contains("nicht erledigt"))
+        swipeHittableElement(app, identifier: "Satz 0 Gewicht", right: true)
+        XCTAssertTrue(app.buttons["Erledigt"].waitForExistence(timeout: 5))
+    }
+
+    /// Regression: once a set's completion is manually overridden via swipe, any later edit to
+    /// an unrelated field (e.g. a typo fix in reps) must not silently recompute isCompleted
+    /// from the auto rule and discard that manual decision.
+    func testManualErledigtOverrideSurvivesAnUnrelatedFieldEdit() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--uitesting"]
+        app.launch()
+        startWorkoutFromFreshPlan(app)
+
+        // Manually mark Satz 0 done via swipe while it's still fully empty (e.g. a bodyweight set).
+        swipeHittableElement(app, identifier: "Satz 0 Gewicht", right: true)
+        let markDoneButton = app.buttons["Erledigt"]
+        XCTAssertTrue(markDoneButton.waitForExistence(timeout: 5))
+        markDoneButton.tap()
+
+        // Now edit an unrelated field (reps) — must not silently flip completion back off.
+        let repsField = app.textFields["Satz 0 Wdh"]
+        XCTAssertTrue(repsField.waitForExistence(timeout: 5))
+        repsField.tap()
+        repsField.typeText("5")
+        app.navigationBars.firstMatch.tap()
+
+        // The manual override must still hold — checked via the row's own swipe-action state
+        // rather than the whole-workout end flow (the other 2 default sets are still empty,
+        // so ending would prompt regardless of Satz 0's own completion state).
+        swipeHittableElement(app, identifier: "Satz 0 Gewicht", right: true)
+        XCTAssertTrue(app.buttons["Nicht erledigt"].waitForExistence(timeout: 5), "The manual 'Erledigt' override must survive an unrelated field edit")
     }
 
     /// The ticket's own stated motivation, chained end-to-end: a set marked done via the quick
-    /// swipe action (not the edit sheet's Toggle) must be just as "done" to the end-of-workout
-    /// flow as one marked via the sheet — i.e. "Entfernen & Beenden" must not treat it as
-    /// incomplete and silently discard it. Mirrors testEndingWorkoutWithAllSetsCompletedSkipsPrompt
-    /// but drives completion through the new swipe path instead of the sheet.
+    /// swipe action must be just as "done" to the end-of-workout flow as an auto-completed one
+    /// — i.e. "Beenden" must not treat it as incomplete and silently discard it.
     func testEndingWorkoutAfterMarkingAllSetsErledigtViaSwipeSkipsPrompt() {
         let app = XCUIApplication()
         app.launchArguments = ["--uitesting"]
@@ -620,9 +1079,7 @@ final class GymTrackUITests: XCTestCase {
         startWorkoutFromFreshPlan(app)
 
         for order in 0..<3 {
-            let row = app.buttons["Satz \(order)"]
-            XCTAssertTrue(row.waitForExistence(timeout: 5))
-            row.swipeRight()
+            swipeHittableElement(app, identifier: "Satz \(order) Gewicht", right: true)
             let markDoneButton = app.buttons["Erledigt"]
             XCTAssertTrue(markDoneButton.waitForExistence(timeout: 5))
             markDoneButton.tap()
@@ -644,40 +1101,35 @@ final class GymTrackUITests: XCTestCase {
         startWorkoutFromFreshPlan(app)
 
         // Give the working set a known weight so the warmup suggestion is checkable.
-        let workingRow = app.buttons["Satz 0"]
-        XCTAssertTrue(workingRow.waitForExistence(timeout: 5))
-        workingRow.tap()
-        let weightField = app.textFields["Satz-Gewicht"]
+        let weightField = app.textFields["Satz 0 Gewicht"]
         XCTAssertTrue(weightField.waitForExistence(timeout: 5))
         weightField.tap()
         typeAndCheckEachKeystroke(weightField, "100")
-        app.buttons["Fertig"].tap()
+        app.navigationBars.firstMatch.tap()
 
         // Adding a warmup inserts it BEFORE the working set, so the working set's
         // identifier shifts from "Satz 0" to "Satz 1".
         app.buttons["Aufwärmsatz"].tap()
-        let warmupRow = app.buttons["Satz 0"]
-        XCTAssertTrue(warmupRow.waitForExistence(timeout: 5))
-        warmupRow.tap()
-        let warmupWeightField = app.textFields["Satz-Gewicht"]
+        let warmupWeightField = app.textFields["Satz 0 Gewicht"]
         XCTAssertTrue(warmupWeightField.waitForExistence(timeout: 5))
         XCTAssertEqual(warmupWeightField.value as? String, "50.0", "A single warmup should default to 50% of the 100 kg working weight")
-        app.buttons["Fertig"].tap()
 
-        let shiftedWorkingRow = app.buttons["Satz 1"]
-        XCTAssertTrue(shiftedWorkingRow.waitForExistence(timeout: 5))
+        // The working row's own SwiftUI view identity never changed (only its Kennung/order
+        // shifted) — its @State-held typed text survives untouched as the raw "100" it was
+        // typed as, not reformatted, since the row was never actually remounted.
+        let shiftedWeightField = app.textFields["Satz 1 Gewicht"]
+        XCTAssertTrue(shiftedWeightField.waitForExistence(timeout: 5))
+        XCTAssertEqual(shiftedWeightField.value as? String, "100")
 
-        // Delete the warmup via swipe-to-delete.
-        warmupRow.swipeLeft()
+        // Delete the warmup via swipe-to-delete (the system-provided trailing action).
+        swipeHittableElement(app, identifier: "Satz 0 Gewicht", right: false)
         app.buttons["Delete"].tap()
 
-        // The working set's own weight must be completely untouched by the warmup's removal.
-        XCTAssertTrue(shiftedWorkingRow.waitForExistence(timeout: 5))
-        shiftedWorkingRow.tap()
-        let reopenedWeightField = app.textFields["Satz-Gewicht"]
-        XCTAssertTrue(reopenedWeightField.waitForExistence(timeout: 5))
-        XCTAssertEqual(reopenedWeightField.value as? String, "100.0")
-        app.buttons["Fertig"].tap()
+        // The working set's own weight must be completely untouched by the warmup's removal —
+        // this app has never reindexed remaining sets after a delete, so it keeps its shifted
+        // "Satz 1" identifier rather than moving back to "Satz 0".
+        XCTAssertTrue(shiftedWeightField.waitForExistence(timeout: 5))
+        XCTAssertEqual(shiftedWeightField.value as? String, "100")
     }
 
     func testAddingAndRemovingDropsetNeverChangesWorkingSetWeight() {
@@ -686,41 +1138,31 @@ final class GymTrackUITests: XCTestCase {
         app.launch()
         startWorkoutFromFreshPlan(app)
 
-        // The default plan pre-fills 3 sets (Satz 0/1/2) for the one exercise. A dropset
-        // drops from the LAST set of the exercise, so give Satz 2 — not Satz 0 — a known
-        // weight, so the suggestion is checkable regardless of the other two sets.
-        let workingRow = app.buttons["Satz 2"]
-        XCTAssertTrue(workingRow.waitForExistence(timeout: 5))
-        workingRow.tap()
-        let weightField = app.textFields["Satz-Gewicht"]
-        XCTAssertTrue(weightField.waitForExistence(timeout: 5))
-        weightField.tap()
-        typeAndCheckEachKeystroke(weightField, "100")
-        app.buttons["Fertig"].tap()
+        // Dropsets drop from the LAST set of the exercise, so give Satz 2 — not Satz 0 — a
+        // known weight, so the suggestion is checkable regardless of the other two sets.
+        let workingWeightField = app.textFields["Satz 2 Gewicht"]
+        XCTAssertTrue(workingWeightField.waitForExistence(timeout: 5))
+        workingWeightField.tap()
+        typeAndCheckEachKeystroke(workingWeightField, "100")
+        app.navigationBars.firstMatch.tap()
 
         // Dropsets are logged after the set they drop from, so the three original sets keep
         // their identifiers and the new dropset appears as "Satz 3".
         app.buttons["Dropsatz"].tap()
-        let dropsetRow = app.buttons["Satz 3"]
-        XCTAssertTrue(dropsetRow.waitForExistence(timeout: 5))
-        XCTAssertFalse(app.buttons["Satz 4"].exists, "Tapping 'Dropsatz' once must create exactly one new set")
-        dropsetRow.tap()
-        let dropsetWeightField = app.textFields["Satz-Gewicht"]
+        let dropsetWeightField = app.textFields["Satz 3 Gewicht"]
         XCTAssertTrue(dropsetWeightField.waitForExistence(timeout: 5))
         XCTAssertEqual(dropsetWeightField.value as? String, "80.0", "A dropset should default to 80% of the 100 kg set it drops from")
-        app.buttons["Fertig"].tap()
+        XCTAssertFalse(app.textFields["Satz 4 Gewicht"].exists, "Tapping 'Dropsatz' once must create exactly one new set")
 
         // Delete the dropset via swipe-to-delete.
-        dropsetRow.swipeLeft()
+        swipeHittableElement(app, identifier: "Satz 3 Gewicht", right: false)
         app.buttons["Delete"].tap()
 
-        // The set it dropped from must be completely untouched by the dropset's removal.
-        XCTAssertTrue(workingRow.waitForExistence(timeout: 5))
-        workingRow.tap()
-        let reopenedWeightField = app.textFields["Satz-Gewicht"]
-        XCTAssertTrue(reopenedWeightField.waitForExistence(timeout: 5))
-        XCTAssertEqual(reopenedWeightField.value as? String, "100.0")
-        app.buttons["Fertig"].tap()
+        // The set it dropped from must be completely untouched by the dropset's removal —
+        // same reasoning as the warmup test: this row was never remounted, so its raw typed
+        // text survives unformatted.
+        XCTAssertTrue(workingWeightField.waitForExistence(timeout: 5))
+        XCTAssertEqual(workingWeightField.value as? String, "100")
     }
 
     func testCompletingAWorkoutShowsStatistics() {
@@ -729,16 +1171,14 @@ final class GymTrackUITests: XCTestCase {
         app.launch()
         startWorkoutFromFreshPlan(app)
 
-        // End the workout regardless of whether the default 3 target sets are all marked
-        // done — if the incomplete-sets alert appears, remove-and-end still leaves at least
-        // one completed set behind (the eligibility bar for a session to count).
-        let workingRow = app.buttons["Satz 0"]
-        XCTAssertTrue(workingRow.waitForExistence(timeout: 5))
-        workingRow.tap()
-        let toggle = app.switches["Satz erledigt"]
-        XCTAssertTrue(toggle.waitForExistence(timeout: 5))
-        toggle.switches.firstMatch.tap()
-        app.buttons["Fertig"].tap()
+        // End the workout regardless of whether the default 3 target sets are all filled in —
+        // marking just Satz 0 done via the manual swipe override (weight/reps stay at 0,
+        // mirroring a real "logged but no weight tracked" scenario) is enough for the session
+        // to be eligible.
+        swipeHittableElement(app, identifier: "Satz 0 Gewicht", right: true)
+        let markDoneButton = app.buttons["Erledigt"]
+        XCTAssertTrue(markDoneButton.waitForExistence(timeout: 5))
+        markDoneButton.tap()
 
         app.navigationBars.buttons["Beenden"].tap()
         if app.alerts.firstMatch.waitForExistence(timeout: 3) {
@@ -768,18 +1208,15 @@ final class GymTrackUITests: XCTestCase {
         startWorkoutFromFreshPlan(app)
 
         // Give the working set a known weight so the estimated 1RM is checkable. The default
-        // plan's target reps is 10 (PlanExerciseDefaults.fallbackReps), left untouched here.
-        let workingRow = app.buttons["Satz 0"]
-        XCTAssertTrue(workingRow.waitForExistence(timeout: 5))
-        workingRow.tap()
-        let weightField = app.textFields["Satz-Gewicht"]
+        // plan's target reps is 10 (PlanExerciseDefaults.fallbackReps).
+        let weightField = app.textFields["Satz 0 Gewicht"]
         XCTAssertTrue(weightField.waitForExistence(timeout: 5))
         weightField.tap()
         typeAndCheckEachKeystroke(weightField, "100")
-        let toggle = app.switches["Satz erledigt"]
-        XCTAssertTrue(toggle.waitForExistence(timeout: 5))
-        toggle.switches.firstMatch.tap()
-        app.buttons["Fertig"].tap()
+        let repsField = app.textFields["Satz 0 Wdh"]
+        repsField.tap()
+        repsField.typeText("10")
+        app.navigationBars.firstMatch.tap()
 
         app.navigationBars.buttons["Beenden"].tap()
         if app.alerts.firstMatch.waitForExistence(timeout: 3) {
@@ -799,13 +1236,10 @@ final class GymTrackUITests: XCTestCase {
         app.launch()
         startWorkoutFromFreshPlan(app)
 
-        let workingRow = app.buttons["Satz 0"]
-        XCTAssertTrue(workingRow.waitForExistence(timeout: 5))
-        workingRow.tap()
-        let toggle = app.switches["Satz erledigt"]
-        XCTAssertTrue(toggle.waitForExistence(timeout: 5))
-        toggle.switches.firstMatch.tap()
-        app.buttons["Fertig"].tap()
+        swipeHittableElement(app, identifier: "Satz 0 Gewicht", right: true)
+        let markDoneButton = app.buttons["Erledigt"]
+        XCTAssertTrue(markDoneButton.waitForExistence(timeout: 5))
+        markDoneButton.tap()
 
         app.navigationBars.buttons["Beenden"].tap()
         if app.alerts.firstMatch.waitForExistence(timeout: 3) {
@@ -817,12 +1251,18 @@ final class GymTrackUITests: XCTestCase {
         XCTAssertTrue(repeatButton.waitForExistence(timeout: 5))
         repeatButton.tap()
 
+        // Repeating also goes through the manual-start preview, same as starting a plan fresh.
+        let confirmStart = app.buttons["Training starten"]
+        XCTAssertTrue(confirmStart.waitForExistence(timeout: 5))
+        confirmStart.tap()
+
         // Lands directly on a fresh, uncompleted session carrying over the same exercise.
         XCTAssertTrue(app.navigationBars.buttons["Beenden"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.buttons["Satz 0"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.textFields["Satz 0 Gewicht"].waitForExistence(timeout: 5))
     }
 
-    /// Builds a one-exercise plan and starts a workout from it, landing on WorkoutSessionView.
+    /// Builds a one-exercise plan and starts a workout from it (via the manual-start
+    /// preview), landing on WorkoutSessionView.
     private func startWorkoutFromFreshPlan(_ app: XCUIApplication) {
         app.tabBars.buttons["Pläne"].tap()
         app.navigationBars.buttons["Plan hinzufügen"].tap()
@@ -837,7 +1277,27 @@ final class GymTrackUITests: XCTestCase {
         let startPlanButton = app.buttons["Neuer Plan"]
         XCTAssertTrue(startPlanButton.waitForExistence(timeout: 5))
         startPlanButton.tap()
+
+        let confirmStart = app.buttons["Training starten"]
+        XCTAssertTrue(confirmStart.waitForExistence(timeout: 5))
+        confirmStart.tap()
+
         XCTAssertTrue(app.navigationBars.buttons["Beenden"].waitForExistence(timeout: 5))
+    }
+
+    /// Drives the 5×-tap-on-version → correct-password flow shared by every developer-mode
+    /// test — assumes the Einstellungen tab isn't already showing a presented sheet.
+    private func unlockDeveloperMode(_ app: XCUIApplication) {
+        app.tabBars.buttons["Einstellungen"].tap()
+        let versionButton = app.buttons["AppVersion"]
+        XCTAssertTrue(versionButton.waitForExistence(timeout: 5))
+        for _ in 0..<5 { versionButton.tap() }
+
+        let passwordField = app.secureTextFields["Passwort"]
+        XCTAssertTrue(passwordField.waitForExistence(timeout: 5))
+        passwordField.tap()
+        passwordField.typeText("Isg#45krusgL.")
+        app.buttons["Bestätigen"].tap()
     }
 
     private func typeAndCheckEachKeystroke(_ field: XCUIElement, _ text: String) {
@@ -878,6 +1338,33 @@ final class GymTrackUITests: XCTestCase {
             return
         }
         hittable.tap()
+    }
+
+    /// Same ambiguity as `tapHittableButton`, but for swiping a set row: with several
+    /// independently-interactive TextFields per row and no row-level identifier of its own
+    /// (see the comment in WorkoutSessionView), the weight field's identifier is reused as the
+    /// row's address for swipe actions, and resolves to more than one accessibility element
+    /// the same way.
+    private func swipeHittableElement(_ app: XCUIApplication, identifier: String, right: Bool) {
+        let matches = app.descendants(matching: .any).matching(identifier: identifier)
+        var hittableCandidates: [XCUIElement] = []
+        var attempts = 0
+        while hittableCandidates.isEmpty && attempts < 25 {
+            hittableCandidates = (0..<matches.count).map { matches.element(boundBy: $0) }.filter { $0.isHittable }
+            if hittableCandidates.isEmpty {
+                usleep(200_000)
+                attempts += 1
+            }
+        }
+        guard let hittable = hittableCandidates.first else {
+            XCTFail("No hittable element with identifier '\(identifier)' found among \(matches.count) match(es)")
+            return
+        }
+        if right {
+            hittable.swipeRight()
+        } else {
+            hittable.swipeLeft()
+        }
     }
 
     /// Waits for `element` to leave the accessibility tree. Needed after dismissing

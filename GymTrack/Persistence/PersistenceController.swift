@@ -11,7 +11,10 @@ enum PersistenceController {
         SetEntry.self,
         PersonalRecord.self,
         ExerciseGymNote.self,
-        ExerciseGymReminder.self
+        ExerciseGymReminder.self,
+        FeedbackEntry.self,
+        DevTodoItem.self,
+        ExerciseGoal.self
     ])
 
     static func makeContainer() -> ModelContainer {

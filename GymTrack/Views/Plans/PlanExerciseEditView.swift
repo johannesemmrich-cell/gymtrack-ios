@@ -16,7 +16,13 @@ struct PlanExerciseEditView: View {
         NavigationStack {
             Form {
                 Section(planExercise.exercise?.name ?? "Übung") {
-                    Stepper("Sätze: \(planExercise.targetSets)", value: $planExercise.targetSets, in: 1...20)
+                    Toggle("Einarmig/einseitig", isOn: $planExercise.isUnilateral)
+                        .accessibilityHint("Sätze werden dann pro Seite statt insgesamt gezählt")
+                    Stepper(
+                        planExercise.isUnilateral ? "Sätze pro Seite: \(planExercise.targetSets)" : "Sätze: \(planExercise.targetSets)",
+                        value: $planExercise.targetSets,
+                        in: 1...20
+                    )
                     Stepper("Wiederholungen: \(planExercise.targetReps)", value: $planExercise.targetReps, in: 1...100)
                     HStack {
                         Text("Gewicht (kg)")

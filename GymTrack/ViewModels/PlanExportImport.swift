@@ -11,7 +11,44 @@ struct PlanExport: Codable {
         let targetSets: Int
         let targetReps: Int
         let targetWeight: Double?
+        let isUnilateral: Bool
         let note: String?
+
+        enum CodingKeys: String, CodingKey {
+            case exerciseName, order, targetSets, targetReps, targetWeight, isUnilateral, note
+        }
+
+        init(
+            exerciseName: String,
+            order: Int,
+            targetSets: Int,
+            targetReps: Int,
+            targetWeight: Double?,
+            isUnilateral: Bool,
+            note: String?
+        ) {
+            self.exerciseName = exerciseName
+            self.order = order
+            self.targetSets = targetSets
+            self.targetReps = targetReps
+            self.targetWeight = targetWeight
+            self.isUnilateral = isUnilateral
+            self.note = note
+        }
+
+        /// Custom decoding so a file exported before unilateral support existed (no
+        /// `isUnilateral` key at all) still imports cleanly as bilateral, instead of the
+        /// whole file failing to decode.
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            exerciseName = try container.decode(String.self, forKey: .exerciseName)
+            order = try container.decode(Int.self, forKey: .order)
+            targetSets = try container.decode(Int.self, forKey: .targetSets)
+            targetReps = try container.decode(Int.self, forKey: .targetReps)
+            targetWeight = try container.decodeIfPresent(Double.self, forKey: .targetWeight)
+            isUnilateral = try container.decodeIfPresent(Bool.self, forKey: .isUnilateral) ?? false
+            note = try container.decodeIfPresent(String.self, forKey: .note)
+        }
     }
 
     let name: String
@@ -34,6 +71,7 @@ enum PlanExportImport {
                 targetSets: planExercise.targetSets,
                 targetReps: planExercise.targetReps,
                 targetWeight: planExercise.targetWeight,
+                isUnilateral: planExercise.isUnilateral,
                 note: planExercise.note
             )
         }
@@ -71,6 +109,7 @@ enum PlanExportImport {
                 targetSets: entry.targetSets,
                 targetReps: entry.targetReps,
                 targetWeight: entry.targetWeight,
+                isUnilateral: entry.isUnilateral,
                 note: entry.note,
                 plan: plan,
                 exercise: exercise

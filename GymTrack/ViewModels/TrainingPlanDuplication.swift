@@ -14,6 +14,7 @@ enum TrainingPlanDuplication {
                 targetSets: source.targetSets,
                 targetReps: source.targetReps,
                 targetWeight: source.targetWeight,
+                isUnilateral: source.isUnilateral,
                 note: source.note,
                 // Duplicating is not tuning — a fresh `.now` here would let a duplicate
                 // silently outrank a genuinely more recently tuned entry in

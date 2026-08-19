@@ -14,12 +14,18 @@ enum WorkoutRepetition {
         var createdSets: [SetEntry] = []
         for sourceSet in sourceSets {
             guard let exercise = sourceSet.exercise else { continue }
+            // The set actually logged last time becomes this time's ghost hint, not a
+            // pre-filled real value — same reasoning as WorkoutSessionBuilder: a fresh set
+            // must never look already-completed before the user has entered anything.
             let set = SetEntry(
                 order: createdSets.count,
                 setType: sourceSet.setType,
-                reps: sourceSet.reps,
-                weight: sourceSet.weight,
+                reps: 0,
+                weight: 0,
                 isCompleted: false,
+                suggestedWeight: sourceSet.weight,
+                suggestedReps: sourceSet.reps,
+                side: sourceSet.side,
                 exercise: exercise,
                 gym: gym,
                 session: session

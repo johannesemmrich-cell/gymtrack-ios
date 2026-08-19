@@ -34,6 +34,11 @@ final class Exercise {
     @Relationship(deleteRule: .cascade, inverse: \ExerciseGymReminder.exercise)
     var gymReminders: [ExerciseGymReminder]? = []
 
+    /// A goal is meaningless without its Exercise, so it cascade-deletes. Modeled as an array
+    /// (CloudKit requires to-many), but `ExerciseGoalStore.findOrCreate` guarantees at most one.
+    @Relationship(deleteRule: .cascade, inverse: \ExerciseGoal.exercise)
+    var goals: [ExerciseGoal]? = []
+
     init(
         id: UUID = UUID(),
         name: String = "",

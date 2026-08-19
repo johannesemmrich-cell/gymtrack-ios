@@ -42,8 +42,8 @@ final class PlanExportImportTests: XCTestCase {
             name: "Push",
             note: "Montags",
             exercises: [
-                PlanExport.ExerciseEntry(exerciseName: "Bankdrücken", order: 0, targetSets: 4, targetReps: 8, targetWeight: 60, note: "Flachbank"),
-                PlanExport.ExerciseEntry(exerciseName: "Klimmzüge", order: 1, targetSets: 3, targetReps: 10, targetWeight: nil, note: nil)
+                PlanExport.ExerciseEntry(exerciseName: "Bankdrücken", order: 0, targetSets: 4, targetReps: 8, targetWeight: 60, isUnilateral: false, note: "Flachbank"),
+                PlanExport.ExerciseEntry(exerciseName: "Klimmzüge", order: 1, targetSets: 3, targetReps: 10, targetWeight: nil, isUnilateral: false, note: nil)
             ]
         )
 
@@ -55,8 +55,40 @@ final class PlanExportImportTests: XCTestCase {
         XCTAssertEqual(decoded.exercises.count, 2)
         XCTAssertEqual(decoded.exercises[0].exerciseName, "Bankdrücken")
         XCTAssertEqual(decoded.exercises[0].targetWeight, 60)
+        XCTAssertEqual(decoded.exercises[0].isUnilateral, false)
         XCTAssertNil(decoded.exercises[1].targetWeight)
         XCTAssertNil(decoded.exercises[1].note)
+    }
+
+    func testEncodeDecodeRoundTripPreservesIsUnilateralTrue() throws {
+        let export = PlanExport(
+            name: "Push",
+            note: nil,
+            exercises: [
+                PlanExport.ExerciseEntry(exerciseName: "Seitheben", order: 0, targetSets: 3, targetReps: 12, targetWeight: 8, isUnilateral: true, note: nil)
+            ]
+        )
+
+        let data = try PlanExportImport.encode(export)
+        let decoded = try PlanExportImport.decode(data)
+
+        XCTAssertEqual(decoded.exercises[0].isUnilateral, true)
+    }
+
+    /// A file exported before unilateral support existed has no `isUnilateral` key at all —
+    /// it must still decode cleanly as bilateral instead of failing the whole import.
+    func testDecodingJSONWithoutIsUnilateralKeyDefaultsToFalse() throws {
+        let legacyJSON = """
+        {
+            "name": "Push",
+            "note": null,
+            "exercises": [
+                { "exerciseName": "Bankdrücken", "order": 0, "targetSets": 4, "targetReps": 8, "targetWeight": 60, "note": null }
+            ]
+        }
+        """
+        let decoded = try PlanExportImport.decode(Data(legacyJSON.utf8))
+        XCTAssertEqual(decoded.exercises[0].isUnilateral, false)
     }
 
     func testEncodeDecodeRoundTripPreservesEmptyPlan() throws {
@@ -110,7 +142,7 @@ final class PlanExportImportTests: XCTestCase {
         let export = PlanExport(
             name: "Push",
             note: nil,
-            exercises: [PlanExport.ExerciseEntry(exerciseName: "Bankdrücken", order: 0, targetSets: 4, targetReps: 8, targetWeight: 60, note: "Flachbank")]
+            exercises: [PlanExport.ExerciseEntry(exerciseName: "Bankdrücken", order: 0, targetSets: 4, targetReps: 8, targetWeight: 60, isUnilateral: false, note: "Flachbank")]
         )
 
         let result = PlanExportImport.makePlan(from: export, availableExercises: [bench])
@@ -127,7 +159,7 @@ final class PlanExportImportTests: XCTestCase {
         let export = PlanExport(
             name: "Push",
             note: nil,
-            exercises: [PlanExport.ExerciseEntry(exerciseName: "Unbekannte Übung", order: 0, targetSets: 3, targetReps: 10, targetWeight: nil, note: nil)]
+            exercises: [PlanExport.ExerciseEntry(exerciseName: "Unbekannte Übung", order: 0, targetSets: 3, targetReps: 10, targetWeight: nil, isUnilateral: false, note: nil)]
         )
         let result = PlanExportImport.makePlan(from: export, availableExercises: [])
         XCTAssertTrue(result.planExercises.isEmpty)
@@ -142,8 +174,8 @@ final class PlanExportImportTests: XCTestCase {
             name: "Ganzkörper",
             note: nil,
             exercises: [
-                PlanExport.ExerciseEntry(exerciseName: "Kniebeugen", order: 1, targetSets: 3, targetReps: 10, targetWeight: nil, note: nil),
-                PlanExport.ExerciseEntry(exerciseName: "Bankdrücken", order: 0, targetSets: 3, targetReps: 10, targetWeight: nil, note: nil)
+                PlanExport.ExerciseEntry(exerciseName: "Kniebeugen", order: 1, targetSets: 3, targetReps: 10, targetWeight: nil, isUnilateral: false, note: nil),
+                PlanExport.ExerciseEntry(exerciseName: "Bankdrücken", order: 0, targetSets: 3, targetReps: 10, targetWeight: nil, isUnilateral: false, note: nil)
             ]
         )
 
@@ -158,7 +190,7 @@ final class PlanExportImportTests: XCTestCase {
         let export = PlanExport(
             name: "Push",
             note: nil,
-            exercises: [PlanExport.ExerciseEntry(exerciseName: "Bankdrücken", order: 0, targetSets: 3, targetReps: 10, targetWeight: nil, note: nil)]
+            exercises: [PlanExport.ExerciseEntry(exerciseName: "Bankdrücken", order: 0, targetSets: 3, targetReps: 10, targetWeight: nil, isUnilateral: false, note: nil)]
         )
         let result = PlanExportImport.makePlan(from: export, availableExercises: [bench])
         XCTAssertTrue(result.planExercises[0].plan === result.plan)

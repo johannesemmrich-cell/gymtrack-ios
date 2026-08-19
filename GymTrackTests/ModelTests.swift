@@ -303,6 +303,23 @@ final class ModelTests: XCTestCase {
         XCTAssertTrue(remaining.isEmpty, "A reminder is meaningless without its Exercise and should be cascade-deleted")
     }
 
+    func testExerciseGoalCascadeDeletesWhenExerciseDeleted() throws {
+        let context = makeContext()
+        let exercise = Exercise(name: "Bankdrücken", muscleGroup: .chest)
+        let goal = ExerciseGoal(targetWeight: 100, exercise: exercise)
+        context.insert(exercise)
+        context.insert(goal)
+        try context.save()
+
+        let goalID = goal.id
+        context.delete(exercise)
+        try context.save()
+
+        let descriptor = FetchDescriptor<ExerciseGoal>(predicate: #Predicate { $0.id == goalID })
+        let remaining = try context.fetch(descriptor)
+        XCTAssertTrue(remaining.isEmpty, "A goal is meaningless without its Exercise and should be cascade-deleted")
+    }
+
     func testExerciseGymReminderCascadeDeletesWhenGymDeleted() throws {
         let context = makeContext()
         let exercise = Exercise(name: "Kreuzheben", muscleGroup: .back)

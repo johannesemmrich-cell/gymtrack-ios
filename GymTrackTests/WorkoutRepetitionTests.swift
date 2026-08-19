@@ -18,7 +18,10 @@ final class WorkoutRepetitionTests: XCTestCase {
         let result = WorkoutRepetition.build(repeating: source, gym: nil)
 
         XCTAssertEqual(result.sets.count, 2)
-        XCTAssertTrue(result.sets.allSatisfy { $0.weight == 60 && $0.reps == 8 && $0.exercise?.name == "Bankdrücken" })
+        // Last time's logged values become this time's ghost hint, not a pre-filled real
+        // value — a repeated set must start exactly as fresh as any other new set.
+        XCTAssertTrue(result.sets.allSatisfy { $0.suggestedWeight == 60 && $0.suggestedReps == 8 && $0.exercise?.name == "Bankdrücken" })
+        XCTAssertTrue(result.sets.allSatisfy { $0.weight == 0 && $0.reps == 0 })
     }
 
     func testCopiedSetsStartUncompletedRegardlessOfSourceCompletionState() {
@@ -104,6 +107,18 @@ final class WorkoutRepetitionTests: XCTestCase {
         let source = WorkoutSession(startedAt: .now, endedAt: .now)
         let result = WorkoutRepetition.build(repeating: source, gym: nil)
         XCTAssertNil(result.session.endedAt)
+    }
+
+    func testPreservesSideFromSourceSets() {
+        let exercise = Exercise(name: "Bizeps-Curl einarmig", muscleGroup: .biceps)
+        let source = WorkoutSession(startedAt: .now, endedAt: .now)
+        _ = SetEntry(order: 0, reps: 12, weight: 8, isCompleted: true, side: .left, exercise: exercise, session: source)
+        _ = SetEntry(order: 1, reps: 12, weight: 8, isCompleted: true, side: .right, exercise: exercise, session: source)
+        _ = SetEntry(order: 2, reps: 10, weight: 40, isCompleted: true, side: nil, exercise: exercise, session: source)
+
+        let result = WorkoutRepetition.build(repeating: source, gym: nil)
+
+        XCTAssertEqual(result.sets.map(\.side), [.left, .right, nil])
     }
 
     func testEachCreatedSetIsExplicitlyLinkedToTheNewSession() {

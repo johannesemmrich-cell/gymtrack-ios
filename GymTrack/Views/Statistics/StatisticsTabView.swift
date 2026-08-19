@@ -3,6 +3,7 @@ import SwiftData
 import Charts
 
 struct StatisticsTabView: View {
+    @AppStorage(DeveloperModeStorage.key) private var isDeveloperModeActive = false
     @Query private var sessions: [WorkoutSession]
     @Query private var exerciseGymNotes: [ExerciseGymNote]
     @State private var selectedExerciseID: UUID?
@@ -91,6 +92,7 @@ struct StatisticsTabView: View {
                 }
             }
             .navigationTitle("Statistik")
+            .developerFeedbackOverlay(isActive: isDeveloperModeActive, screen: "Statistik", feature: "Statistik-Tab")
         }
     }
 

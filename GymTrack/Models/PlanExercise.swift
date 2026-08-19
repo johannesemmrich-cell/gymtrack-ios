@@ -8,6 +8,10 @@ final class PlanExercise {
     var targetSets: Int = 3
     var targetReps: Int = 10
     var targetWeight: Double? = nil
+    /// When true, `targetSets` means "sets per side" rather than "sets total" — the same
+    /// exercise can be unilateral in one plan and bilateral in another, so this lives here
+    /// rather than on `Exercise` itself.
+    var isUnilateral: Bool = false
     /// Free-text note scoped to this exercise within this plan (e.g. "Flachbank statt Schrägbank").
     var note: String? = nil
     /// Bumped whenever sets/reps/weight/note are tuned; used to find the most recently
@@ -28,6 +32,7 @@ final class PlanExercise {
         targetSets: Int = 3,
         targetReps: Int = 10,
         targetWeight: Double? = nil,
+        isUnilateral: Bool = false,
         note: String? = nil,
         updatedAt: Date = .now,
         supersetGroupID: UUID? = nil,
@@ -39,6 +44,7 @@ final class PlanExercise {
         self.targetSets = targetSets
         self.targetReps = targetReps
         self.targetWeight = targetWeight
+        self.isUnilateral = isUnilateral
         self.note = note
         self.updatedAt = updatedAt
         self.supersetGroupID = supersetGroupID

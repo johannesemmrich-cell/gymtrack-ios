@@ -3,6 +3,7 @@ import SwiftData
 
 struct PlanListView: View {
     @Environment(\.modelContext) private var modelContext
+    @AppStorage(DeveloperModeStorage.key) private var isDeveloperModeActive = false
     @Query(sort: \TrainingPlan.updatedAt, order: .reverse) private var plans: [TrainingPlan]
     @Query private var exercises: [Exercise]
 
@@ -48,6 +49,7 @@ struct PlanListView: View {
                 }
             }
             .navigationTitle("Pläne")
+            .developerFeedbackOverlay(isActive: isDeveloperModeActive, screen: "Pläne", feature: "Plan-Liste")
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
                     Button {

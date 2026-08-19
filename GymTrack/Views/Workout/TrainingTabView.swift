@@ -2,12 +2,14 @@ import SwiftUI
 import SwiftData
 
 struct TrainingTabView: View {
-    @Environment(\.modelContext) private var modelContext
+    @AppStorage(DeveloperModeStorage.key) private var isDeveloperModeActive = false
     @Query(filter: #Predicate<WorkoutSession> { $0.endedAt == nil }) private var activeSessions: [WorkoutSession]
     @Query(sort: \TrainingPlan.updatedAt, order: .reverse) private var plans: [TrainingPlan]
     @Query(filter: #Predicate<Gym> { $0.isActive }) private var activeGyms: [Gym]
     @Query private var allSetEntries: [SetEntry]
     @Query private var allSessions: [WorkoutSession]
+
+    @State private var navigationPath = NavigationPath()
 
     private var activeSession: WorkoutSession? { activeSessions.first }
     private var activeGym: Gym? { activeGyms.first }
@@ -17,16 +19,15 @@ struct TrainingTabView: View {
     }
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $navigationPath) {
             if let activeSession {
                 WorkoutSessionView(session: activeSession)
+                    .developerFeedbackOverlay(isActive: isDeveloperModeActive, screen: "Training", feature: "Aktives Workout")
             } else {
                 List {
                     if let lastRepeatableSession {
                         Section("Wiederholen") {
-                            Button {
-                                startWorkout(repeating: lastRepeatableSession)
-                            } label: {
+                            NavigationLink(value: lastRepeatableSession) {
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text("Letztes Training wiederholen")
                                     Text(lastRepeatableSession.planName ?? repeatSubtitle(for: lastRepeatableSession))
@@ -47,9 +48,7 @@ struct TrainingTabView: View {
                     } else if !plans.isEmpty {
                         Section("Plan starten") {
                             ForEach(plans) { plan in
-                                Button {
-                                    startWorkout(from: plan)
-                                } label: {
+                                NavigationLink(value: plan) {
                                     Text(plan.name)
                                 }
                                 .accessibilityIdentifier(plan.name)
@@ -58,26 +57,25 @@ struct TrainingTabView: View {
                     }
                 }
                 .navigationTitle("Training")
+                .developerFeedbackOverlay(isActive: isDeveloperModeActive, screen: "Training", feature: "Plan-Auswahl")
+                .navigationDestination(for: TrainingPlan.self) { plan in
+                    PlanStartView(
+                        source: .plan(plan),
+                        gym: activeGym,
+                        setHistory: allSetEntries,
+                        onStarted: { _ in navigationPath = NavigationPath() }
+                    )
+                }
+                .navigationDestination(for: WorkoutSession.self) { session in
+                    PlanStartView(
+                        source: .repeatSession(session),
+                        gym: activeGym,
+                        setHistory: allSetEntries,
+                        onStarted: { _ in navigationPath = NavigationPath() }
+                    )
+                }
             }
         }
-    }
-
-    private func startWorkout(from plan: TrainingPlan) {
-        let result = WorkoutSessionBuilder.build(from: plan, gym: activeGym, setHistory: allSetEntries)
-        modelContext.insert(result.session)
-        for set in result.sets {
-            modelContext.insert(set)
-        }
-        try? modelContext.save()
-    }
-
-    private func startWorkout(repeating session: WorkoutSession) {
-        let result = WorkoutRepetition.build(repeating: session, gym: activeGym)
-        modelContext.insert(result.session)
-        for set in result.sets {
-            modelContext.insert(set)
-        }
-        try? modelContext.save()
     }
 
     private func repeatSubtitle(for session: WorkoutSession) -> String {

@@ -210,7 +210,10 @@ private struct PlanExerciseRow: View {
     }
 
     private var summary: String {
-        var parts = ["\(planExercise.targetSets)× \(planExercise.targetReps) Wdh."]
+        let setsLabel = planExercise.isUnilateral
+            ? "\(planExercise.targetSets)× \(planExercise.targetReps) Wdh. pro Seite"
+            : "\(planExercise.targetSets)× \(planExercise.targetReps) Wdh."
+        var parts = [setsLabel]
         if let weight = planExercise.targetWeight {
             parts.append("\(weight.formatted()) kg")
         }

@@ -34,10 +34,23 @@ struct ExerciseLibraryView: View {
                 ForEach(groupedExercises, id: \.group) { entry in
                     Section(entry.group.displayName) {
                         ForEach(entry.items) { exercise in
-                            ExerciseRow(exercise: exercise)
-                        }
-                        .onDelete { offsets in
-                            delete(items: entry.items, at: offsets)
+                            // Value-less NavigationLink deliberately, not NavigationLink(value:)
+                            // + .navigationDestination(for:) — that pairing never fired a single
+                            // push here in practice (confirmed via screen recordings across
+                            // several otherwise-plausible fixes), regardless of which view owned
+                            // the .navigationDestination. This screen is itself reached via a
+                            // value-less NavigationLink from SettingsView; this form is the one
+                            // proven to work for a further push from there.
+                            NavigationLink {
+                                ExerciseDetailView(exercise: exercise)
+                            } label: {
+                                ExerciseRow(exercise: exercise)
+                            }
+                            .swipeActions(edge: .trailing) {
+                                Button("Löschen", role: .destructive) {
+                                    delete(exercise)
+                                }
+                            }
                         }
                     }
                 }
@@ -59,10 +72,8 @@ struct ExerciseLibraryView: View {
         }
     }
 
-    private func delete(items: [Exercise], at offsets: IndexSet) {
-        for index in offsets {
-            modelContext.delete(items[index])
-        }
+    private func delete(_ exercise: Exercise) {
+        modelContext.delete(exercise)
         try? modelContext.save()
     }
 }
@@ -80,7 +91,5 @@ private struct ExerciseRow: View {
                     .foregroundStyle(.secondary)
             }
         }
-        .accessibilityElement(children: .combine)
-        .accessibilityIdentifier(exercise.name)
     }
 }
