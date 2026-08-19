@@ -382,10 +382,18 @@ private struct SetRow: View {
 
     var body: some View {
         HStack(spacing: 8) {
+            // fixedSize here for the same reason as weight/reps below, and just as safely: the
+            // content is short and bounded (a set index up to targetSets' 20-set stepper max,
+            // doubled to ~40 for an alternating unilateral side plus one letter, e.g. "40 R"),
+            // never free text. Without it, at extreme accessibility text sizes this label wraps
+            // to multiple lines inside its narrow column and — verified on-device — visibly
+            // overlaps the now-rigid (fixedSize) weight field next to it, which is worse than
+            // the plain truncation this whole row's redesign was meant to move away from.
             Text(kennung)
                 .font(.body.weight(.semibold))
                 .foregroundStyle(.secondary)
                 .frame(minWidth: 18, alignment: .leading)
+                .fixedSize(horizontal: true, vertical: false)
                 .accessibilityIdentifier("Satz \(set.order) Kennung")
                 .accessibilityLabel(kennungDescription)
 
@@ -415,9 +423,12 @@ private struct SetRow: View {
                     updateCompletion()
                 }
 
+            // Constant, never-varying content — fixedSize stops it from wrapping mid-word
+            // ("kg" split across lines) once weight/reps stopped yielding any space to it.
             Text("kg ×")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
+                .fixedSize(horizontal: true, vertical: false)
 
             TextField(repsPlaceholder, text: $repsText)
                 .font(.title3.weight(.semibold))
@@ -441,9 +452,15 @@ private struct SetRow: View {
                     updateCompletion()
                 }
 
+            // Deliberately the only still-flexible field in this row — free text is genuinely
+            // unbounded, unlike every sibling above, so it's the right place for the row's
+            // layout pressure to land. No fixedSize (it must still be able to shrink), but a
+            // small minWidth floor keeps it from being squeezed to a bare, unreadable ellipsis
+            // at extreme accessibility text sizes now that its neighbors no longer yield at all.
             TextField("Notiz", text: noteBinding)
                 .font(.caption)
                 .foregroundStyle(.secondary)
+                .frame(minWidth: 24)
                 .accessibilityIdentifier("Satz \(set.order) Notiz")
                 .accessibilityLabel("\(kennungDescription), Notiz")
 

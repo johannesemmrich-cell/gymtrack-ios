@@ -208,6 +208,69 @@ final class GymTrackUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["0 Übungen · Berlin"].waitForExistence(timeout: 5))
     }
 
+    /// Activating a DIFFERENT, still-existing gym via Einstellungen → Gyms — not the new
+    /// Pläne-tab picker, and not via deletion — must also update the Pläne-tab filter if it was
+    /// already showing a gym before this happened. The filter derives live from the app-wide
+    /// active gym rather than caching a snapshot that needs manual resyncing, so it can't drift
+    /// regardless of which of the two switcher UIs was used.
+    func testActivatingADifferentGymViaSettingsUpdatesAnAlreadyVisitedPlanFilter() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--uitesting"]
+        app.launch()
+
+        app.tabBars.buttons["Einstellungen"].tap()
+        app.staticTexts["Gyms"].tap()
+        createGym(app, name: "Berlin")
+        createGym(app, name: "Frankfurt")
+        app.buttons["Berlin"].tap()
+        XCTAssertTrue(app.buttons["Berlin"].isSelected)
+
+        // Visit Pläne once while Berlin is active — the filter picks it up.
+        app.tabBars.buttons["Pläne"].tap()
+        app.navigationBars.buttons["Plan hinzufügen"].tap()
+        XCTAssertTrue(app.textFields["Planname"].waitForExistence(timeout: 5))
+        app.buttons["BackButton"].tap()
+        XCTAssertTrue(app.staticTexts["0 Übungen · Berlin"].waitForExistence(timeout: 5))
+
+        // Switch the active gym via Einstellungen → Gyms, deliberately not via the Pläne-tab
+        // picker, while the Pläne tab (already visited once) stays alive in the background.
+        app.tabBars.buttons["Einstellungen"].tap()
+        app.staticTexts["Gyms"].tap()
+        app.buttons["Frankfurt"].tap()
+        XCTAssertTrue(app.buttons["Frankfurt"].isSelected)
+
+        app.tabBars.buttons["Pläne"].tap()
+        app.navigationBars.buttons["Plan hinzufügen"].tap()
+        XCTAssertTrue(app.textFields["Planname"].waitForExistence(timeout: 5))
+        app.buttons["BackButton"].tap()
+        XCTAssertTrue(app.staticTexts["0 Übungen · Frankfurt"].waitForExistence(timeout: 5))
+    }
+
+    /// A gym that becomes active only AFTER the Pläne tab's first-ever appearance (e.g. a new
+    /// user visits Pläne before configuring any gym at all, then later creates and activates
+    /// one) must still be picked up — the filter must never permanently lock onto "Alle" just
+    /// because no gym happened to be active yet at that first appearance.
+    func testActivatingAGymAfterFirstVisitingPlaneWithNoActiveGymUpdatesTheFilter() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--uitesting"]
+        app.launch()
+
+        app.tabBars.buttons["Pläne"].tap()
+        XCTAssertTrue(app.navigationBars.buttons["Plan hinzufügen"].waitForExistence(timeout: 5))
+
+        app.tabBars.buttons["Einstellungen"].tap()
+        app.staticTexts["Gyms"].tap()
+        createGym(app, name: "Berlin")
+        app.buttons["Berlin"].tap()
+        XCTAssertTrue(app.buttons["Berlin"].isSelected)
+
+        app.tabBars.buttons["Pläne"].tap()
+        app.navigationBars.buttons["Plan hinzufügen"].tap()
+        XCTAssertTrue(app.textFields["Planname"].waitForExistence(timeout: 5))
+        app.buttons["BackButton"].tap()
+        XCTAssertTrue(app.staticTexts["0 Übungen · Berlin"].waitForExistence(timeout: 5))
+    }
+
     /// Independent of the list filter, a plan's gym must also be changeable after the fact from
     /// its own editor.
     func testAssigningAGymInThePlanEditorShowsItInThePlanList() {
